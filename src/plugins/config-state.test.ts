@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUNDLED_ENABLED_BY_DEFAULT,
   normalizePluginsConfig,
   resolveEffectiveEnableState,
   resolveEnableState,
@@ -117,6 +118,12 @@ describe("resolveEffectiveEnableState", () => {
 });
 
 describe("resolveEnableState", () => {
+  it("includes agent-provisioner in bundled plugins enabled by default", () => {
+    expect(BUNDLED_ENABLED_BY_DEFAULT.has("agent-provisioner")).toBe(true);
+    const state = resolveEnableState("agent-provisioner", "bundled", normalizePluginsConfig({}));
+    expect(state).toEqual({ enabled: true });
+  });
+
   it("keeps the selected memory slot plugin enabled even when omitted from plugins.allow", () => {
     const state = resolveEnableState(
       "memory-core",

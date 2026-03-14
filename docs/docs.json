@@ -1215,6 +1215,7 @@
                     "pages": [
                       "gateway/protocol",
                       "gateway/bridge-protocol",
+                      "gateway/agent-provisioner-http-api",
                       "gateway/openai-http-api",
                       "gateway/openresponses-http-api",
                       "gateway/tools-invoke-http-api",
