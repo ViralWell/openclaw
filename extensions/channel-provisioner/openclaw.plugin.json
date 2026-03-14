@@ -1,0 +1,27 @@
+{
+  "id": "channel-provisioner",
+  "name": "Channel Provisioner",
+  "description": "Expose external HTTP endpoints that manage OpenClaw channel accounts.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "authToken": {
+        "type": "string"
+      }
+    }
+  },
+  "uiHints": {
+    "path": {
+      "label": "HTTP Path",
+      "help": "Plugin route path exposed by the gateway, for example /plugins/channel-provisioner/channels."
+    },
+    "authToken": {
+      "label": "Auth Token",
+      "help": "Bearer token required by the channel provisioning endpoint. Can also be set with OPENCLAW_CHANNEL_PROVISIONER_TOKEN."
+    }
+  }
+}

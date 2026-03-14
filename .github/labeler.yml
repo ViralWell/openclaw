@@ -248,6 +248,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/agent-provisioner/**"
+"extensions: channel-provisioner":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/channel-provisioner/**"
 "extensions: minimax-portal-auth":
   - changed-files:
       - any-glob-to-any-file:
