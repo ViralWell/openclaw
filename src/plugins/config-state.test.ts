@@ -124,6 +124,12 @@ describe("resolveEnableState", () => {
     expect(state).toEqual({ enabled: true });
   });
 
+  it("includes channel-provisioner in bundled plugins enabled by default", () => {
+    expect(BUNDLED_ENABLED_BY_DEFAULT.has("channel-provisioner")).toBe(true);
+    const state = resolveEnableState("channel-provisioner", "bundled", normalizePluginsConfig({}));
+    expect(state).toEqual({ enabled: true });
+  });
+
   it("keeps the selected memory slot plugin enabled even when omitted from plugins.allow", () => {
     const state = resolveEnableState(
       "memory-core",

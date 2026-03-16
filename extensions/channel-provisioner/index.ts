@@ -4,26 +4,23 @@ import {
   beginWebhookRequestPipelineOrReject,
   emptyPluginConfigSchema,
   readJsonWebhookBodyOrReject,
-  type OpenClawConfig,
-  type OpenClawPluginApi,
-} from "openclaw/plugin-sdk";
-import {
+  applyChannelAccountConfig,
+  buildChannelAccountSnapshot,
+  defaultRuntime,
+  DEFAULT_ACCOUNT_ID,
+  deleteTelegramUpdateOffset,
   getChannelPlugin,
   listChannelPlugins,
+  moveSingleAccountChannelSectionToDefaultAccount,
+  normalizeAccountId,
   normalizeChannelId,
-} from "../../src/channels/plugins/index.js";
-import { moveSingleAccountChannelSectionToDefaultAccount } from "../../src/channels/plugins/setup-helpers.js";
-import { buildChannelAccountSnapshot } from "../../src/channels/plugins/status.js";
-import type {
-  ChannelResolveKind,
-  ChannelResolveResult,
-  ChannelSetupInput,
-} from "../../src/channels/plugins/types.js";
-import { applyChannelAccountConfig } from "../../src/commands/channels/add-mutators.js";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../src/routing/session-key.js";
-import { defaultRuntime } from "../../src/runtime.js";
-import { resolveTelegramAccount } from "../../src/telegram/accounts.js";
-import { deleteTelegramUpdateOffset } from "../../src/telegram/update-offset-store.js";
+  resolveTelegramAccount,
+  type ChannelResolveKind,
+  type ChannelResolveResult,
+  type ChannelSetupInput,
+  type OpenClawConfig,
+  type OpenClawPluginApi,
+} from "openclaw/plugin-sdk/channel-provisioner";
 
 type ChannelAccountBody = {
   accountId?: string;

@@ -22,6 +22,8 @@ const entrypoints = [
   "bluebubbles",
   "copilot-proxy",
   "device-pair",
+  "agent-provisioner",
+  "channel-provisioner",
   "diagnostics-otel",
   "diffs",
   "feishu",

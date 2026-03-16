@@ -96,6 +96,14 @@
       "types": "./dist/plugin-sdk/device-pair.d.ts",
       "default": "./dist/plugin-sdk/device-pair.js"
     },
+    "./plugin-sdk/agent-provisioner": {
+      "types": "./dist/plugin-sdk/agent-provisioner.d.ts",
+      "default": "./dist/plugin-sdk/agent-provisioner.js"
+    },
+    "./plugin-sdk/channel-provisioner": {
+      "types": "./dist/plugin-sdk/channel-provisioner.d.ts",
+      "default": "./dist/plugin-sdk/channel-provisioner.js"
+    },
     "./plugin-sdk/diagnostics-otel": {
       "types": "./dist/plugin-sdk/diagnostics-otel.d.ts",
       "default": "./dist/plugin-sdk/diagnostics-otel.js"

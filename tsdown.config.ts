@@ -58,6 +58,8 @@ const pluginSdkEntrypoints = [
   "device-pair",
   "diagnostics-otel",
   "diffs",
+  "agent-provisioner",
+  "channel-provisioner",
   "feishu",
   "google-gemini-cli-auth",
   "googlechat",

@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/channel-provisioner",
+  "version": "2026.3.14",
+  "private": true,
+  "description": "OpenClaw channel provisioner plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -7,25 +7,23 @@ import {
   readJsonWebhookBodyOrReject,
   type OpenClawConfig,
   type OpenClawPluginApi,
-} from "openclaw/plugin-sdk";
-import { resolveAgentDir } from "../../src/agents/agent-scope.js";
-import { DEFAULT_IDENTITY_FILENAME, ensureAgentWorkspace } from "../../src/agents/workspace.js";
-import {
   applyAgentBindings,
-  describeBinding,
-  parseBindingSpecs,
-} from "../../src/commands/agents.bindings.js";
-import {
   applyAgentConfig,
   buildAgentSummaries,
+  DEFAULT_IDENTITY_FILENAME,
+  describeBinding,
+  ensureAgentWorkspace,
   findAgentEntryIndex,
+  isRouteBinding,
   listAgentEntries,
-} from "../../src/commands/agents.config.js";
-import { isRouteBinding, listRouteBindings } from "../../src/config/bindings.js";
-import { resolveStateDir } from "../../src/config/paths.js";
-import { resolveSessionTranscriptsDirForAgent } from "../../src/config/sessions/paths.js";
-import { normalizeAgentId } from "../../src/routing/session-key.js";
-import { resolveUserPath } from "../../src/utils.js";
+  listRouteBindings,
+  normalizeAgentId,
+  parseBindingSpecs,
+  resolveAgentDir,
+  resolveSessionTranscriptsDirForAgent,
+  resolveStateDir,
+  resolveUserPath,
+} from "openclaw/plugin-sdk/agent-provisioner";
 
 type AgentUpsertBody = {
   id?: string;
