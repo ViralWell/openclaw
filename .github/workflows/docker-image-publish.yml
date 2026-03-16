@@ -75,6 +75,9 @@ jobs:
     needs: [docker-publish]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Validate EC2 deploy configuration
         run: |
           test -n "${{ secrets.EC2_SSH_HOST }}" || {
