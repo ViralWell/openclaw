@@ -118,7 +118,9 @@ jobs:
         run: |
           ssh "${EC2_USER}@${EC2_HOST}" "bash -s" <<EOF
           set -euo pipefail
+          mkdir -p "${EC2_OPENCLAW_DIR}"
           cd "${EC2_OPENCLAW_DIR}"
+          mkdir -p data
           echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
           if [ -f .env ]; then
             if grep -q '^OPENCLAW_IMAGE=' .env; then

@@ -11,8 +11,7 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
       TZ: ${OPENCLAW_TZ:-UTC}
     volumes:
-      - ./data/config:/home/node/.openclaw
-      - ./data/workspace:/home/node/.openclaw/workspace
+      - ./data:/home/node/.openclaw
       ## Uncomment the lines below to enable sandbox isolation
       ## (agents.defaults.sandbox). Requires Docker CLI in the image
       ## (build with --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1) or use
@@ -68,8 +67,7 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
       TZ: ${OPENCLAW_TZ:-UTC}
     volumes:
-      - ./data/config:/home/node/.openclaw
-      - ./data/workspace:/home/node/.openclaw/workspace
+      - ./data:/home/node/.openclaw
     stdin_open: true
     tty: true
     init: true
