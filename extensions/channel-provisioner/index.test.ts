@@ -159,7 +159,7 @@ describe("channel-provisioner plugin", () => {
     });
   });
 
-  it("registers the configured plugin route as a prefix route", () => {
+  it("registers the default plugin route as a prefix route", () => {
     const registerHttpRoute = vi.fn();
 
     plugin.register?.(
@@ -169,7 +169,6 @@ describe("channel-provisioner plugin", () => {
         description: "Channel Provisioner",
         source: "test",
         config: {},
-        pluginConfig: { path: "/hooks/channels" },
         runtime: {
           config: { loadConfig: vi.fn(() => ({})), writeConfigFile: vi.fn() },
         } as never,
@@ -179,7 +178,7 @@ describe("channel-provisioner plugin", () => {
 
     expect(registerHttpRoute).toHaveBeenCalledTimes(1);
     expect(registerHttpRoute.mock.calls[0]?.[0]).toMatchObject({
-      path: "/hooks/channels",
+      path: "/plugins/channel-provisioner/channels",
       match: "prefix",
       auth: "gateway",
     });

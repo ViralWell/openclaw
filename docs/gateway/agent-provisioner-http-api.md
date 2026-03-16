@@ -164,6 +164,5 @@ curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot"
 
 ## Notes
 
-- The route path is configurable in plugin config. The examples above use the default path.
 - `PUT` is the main sync endpoint when your external system is the source of truth.
 - When `bindings` is omitted, the plugin keeps the agent's existing route bindings unchanged.

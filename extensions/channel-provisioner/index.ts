@@ -24,10 +24,6 @@ import { defaultRuntime } from "../../src/runtime.js";
 import { resolveTelegramAccount } from "../../src/telegram/accounts.js";
 import { deleteTelegramUpdateOffset } from "../../src/telegram/update-offset-store.js";
 
-type ChannelProvisionerPluginConfig = {
-  path?: string;
-};
-
 type ChannelAccountBody = {
   accountId?: string;
   config?: Record<string, unknown>;
@@ -596,8 +592,7 @@ const plugin: {
   name: "Channel Provisioner",
   description: "Expose HTTP endpoints that manage OpenClaw channel accounts.",
   register(api: OpenClawPluginApi) {
-    const pluginConfig = (api.pluginConfig ?? {}) as ChannelProvisionerPluginConfig;
-    const basePath = pluginConfig.path?.trim() || DEFAULT_ROUTE_PATH;
+    const basePath = DEFAULT_ROUTE_PATH;
 
     api.registerHttpRoute({
       path: basePath,

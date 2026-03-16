@@ -138,6 +138,5 @@ curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/tele
 
 ## Notes
 
-- The route path is configurable in plugin config. The examples above use the default path.
 - `GET /channels` and `GET /channels/status` currently return the same snapshot-oriented payload.
 - This API manages channel accounts only. Route channel ownership to agents through the agent provisioning API.

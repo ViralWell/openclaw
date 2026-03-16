@@ -26,10 +26,6 @@ import { resolveSessionTranscriptsDirForAgent } from "../../src/config/sessions/
 import { normalizeAgentId } from "../../src/routing/session-key.js";
 import { resolveUserPath } from "../../src/utils.js";
 
-type AgentProvisionerPluginConfig = {
-  path?: string;
-};
-
 type AgentUpsertBody = {
   id?: string;
   name?: string;
@@ -410,8 +406,7 @@ const plugin: {
   name: "Agent Provisioner",
   description: "Expose HTTP endpoints that sync OpenClaw agents.",
   register(api: OpenClawPluginApi) {
-    const pluginConfig = (api.pluginConfig ?? {}) as AgentProvisionerPluginConfig;
-    const basePath = pluginConfig.path?.trim() || DEFAULT_ROUTE_PATH;
+    const basePath = DEFAULT_ROUTE_PATH;
 
     api.registerHttpRoute({
       path: basePath,

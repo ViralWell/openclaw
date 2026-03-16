@@ -64,7 +64,7 @@ function localReq(input: {
 }
 
 describe("agent-provisioner plugin", () => {
-  it("registers the configured plugin route as a prefix route", () => {
+  it("registers the default plugin route as a prefix route", () => {
     const registerHttpRoute = vi.fn();
 
     plugin.register?.(
@@ -74,7 +74,6 @@ describe("agent-provisioner plugin", () => {
         description: "Agent Provisioner",
         source: "test",
         config: {},
-        pluginConfig: { path: "/hooks/agents" },
         runtime: {
           config: { loadConfig: vi.fn(() => ({})), writeConfigFile: vi.fn() },
           state: { resolveStateDir: vi.fn(() => "/tmp/openclaw-state") },
@@ -85,7 +84,7 @@ describe("agent-provisioner plugin", () => {
 
     expect(registerHttpRoute).toHaveBeenCalledTimes(1);
     expect(registerHttpRoute.mock.calls[0]?.[0]).toMatchObject({
-      path: "/hooks/agents",
+      path: "/plugins/agent-provisioner/agents",
       match: "prefix",
       auth: "gateway",
     });

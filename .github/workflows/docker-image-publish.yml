@@ -1,0 +1,142 @@
+name: Docker Image Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+
+permissions:
+  contents: read
+
+jobs:
+  docker-publish:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_image: ${{ steps.export-image.outputs.deploy_image }}
+    steps:
+      - name: Validate Docker Hub configuration
+        run: |
+          test -n "${{ env.IMAGE_NAME }}" || {
+            echo "Repository variable DOCKERHUB_IMAGE is required, for example: your-org/openclaw" >&2
+            exit 1
+          }
+          test -n "${{ secrets.DOCKERHUB_USERNAME }}" || {
+            echo "Secret DOCKERHUB_USERNAME is required." >&2
+            exit 1
+          }
+          test -n "${{ secrets.DOCKERHUB_TOKEN }}" || {
+            echo "Secret DOCKERHUB_TOKEN is required." >&2
+            exit 1
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Export deploy image
+        id: export-image
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "deploy_image=${IMAGE_NAME}:${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "deploy_image=${IMAGE_NAME}:latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_image=${IMAGE_NAME}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-ec2:
+    runs-on: ubuntu-latest
+    needs: [docker-publish]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Validate EC2 deploy configuration
+        run: |
+          test -n "${{ secrets.EC2_SSH_HOST }}" || {
+            echo "Secret EC2_SSH_HOST is required." >&2
+            exit 1
+          }
+          test -n "${{ secrets.EC2_SSH_USER }}" || {
+            echo "Secret EC2_SSH_USER is required." >&2
+            exit 1
+          }
+          test -n "${{ secrets.EC2_SSH_KEY }}" || {
+            echo "Secret EC2_SSH_KEY is required." >&2
+            exit 1
+          }
+          test -n "${{ vars.EC2_OPENCLAW_DIR }}" || {
+            echo "Repository variable EC2_OPENCLAW_DIR is required, for example: /srv/openclaw" >&2
+            exit 1
+          }
+
+      - name: Install SSH key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.EC2_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        env:
+          DEPLOY_IMAGE: ${{ needs.docker-publish.outputs.deploy_image }}
+          EC2_HOST: ${{ secrets.EC2_SSH_HOST }}
+          EC2_USER: ${{ secrets.EC2_SSH_USER }}
+          EC2_OPENCLAW_DIR: ${{ vars.EC2_OPENCLAW_DIR }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          ssh "${EC2_USER}@${EC2_HOST}" "bash -s" <<EOF
+          set -euo pipefail
+          cd "${EC2_OPENCLAW_DIR}"
+          echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          if [ -f .env ]; then
+            if grep -q '^OPENCLAW_IMAGE=' .env; then
+              sed -i.bak \"s|^OPENCLAW_IMAGE=.*|OPENCLAW_IMAGE=${DEPLOY_IMAGE}|\" .env
+            else
+              printf '\nOPENCLAW_IMAGE=%s\n' "${DEPLOY_IMAGE}" >> .env
+            fi
+          else
+            printf 'OPENCLAW_IMAGE=%s\n' "${DEPLOY_IMAGE}" > .env
+          fi
+          docker compose pull openclaw-gateway openclaw-cli
+          docker compose up -d --force-recreate openclaw-gateway
+          docker image prune -f
+          EOF

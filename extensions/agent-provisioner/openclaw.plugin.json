@@ -1,20 +1,5 @@
 {
   "id": "agent-provisioner",
   "name": "Agent Provisioner",
-  "description": "Expose an external HTTP endpoint that creates or updates OpenClaw agents.",
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "path": {
-        "type": "string"
-      }
-    }
-  },
-  "uiHints": {
-    "path": {
-      "label": "HTTP Path",
-      "help": "Plugin route path exposed by the gateway, for example /plugins/agent-provisioner."
-    }
-  }
+  "description": "Expose an external HTTP endpoint that creates or updates OpenClaw agents."
 }
