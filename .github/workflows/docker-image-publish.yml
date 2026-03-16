@@ -12,6 +12,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: docker.io
   IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+  EC2_OPENCLAW_DIR: /home/ubuntu/openclaw
 
 permissions:
   contents: read
@@ -19,8 +20,6 @@ permissions:
 jobs:
   docker-publish:
     runs-on: ubuntu-latest
-    outputs:
-      deploy_image: ${{ steps.export-image.outputs.deploy_image }}
     steps:
       - name: Validate Docker Hub configuration
         run: |
@@ -52,34 +51,24 @@ jobs:
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=tag
+            type=match,pattern=v(.*),group=1
             type=sha
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Export deploy image
-        id: export-image
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "deploy_image=${IMAGE_NAME}:${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            echo "deploy_image=${IMAGE_NAME}:latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy_image=${IMAGE_NAME}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          fi
 
   deploy-ec2:
     runs-on: ubuntu-latest
@@ -100,10 +89,6 @@ jobs:
             echo "Secret EC2_SSH_KEY is required." >&2
             exit 1
           }
-          test -n "${{ vars.EC2_OPENCLAW_DIR }}" || {
-            echo "Repository variable EC2_OPENCLAW_DIR is required, for example: /srv/openclaw" >&2
-            exit 1
-          }
 
       - name: Install SSH key
         env:
@@ -114,12 +99,20 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.EC2_SSH_HOST }}" >> ~/.ssh/known_hosts
 
+      - name: Resolve deploy image
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "DEPLOY_IMAGE=${IMAGE_NAME}:${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "DEPLOY_IMAGE=${IMAGE_NAME}:latest" >> "$GITHUB_ENV"
+          else
+            echo "DEPLOY_IMAGE=${IMAGE_NAME}:sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
       - name: Deploy to EC2
         env:
-          DEPLOY_IMAGE: ${{ needs.docker-publish.outputs.deploy_image }}
           EC2_HOST: ${{ secrets.EC2_SSH_HOST }}
           EC2_USER: ${{ secrets.EC2_SSH_USER }}
-          EC2_OPENCLAW_DIR: ${{ vars.EC2_OPENCLAW_DIR }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
