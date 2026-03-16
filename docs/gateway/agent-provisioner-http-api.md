@@ -24,14 +24,18 @@ The plugin registers a prefix route, so the full endpoints are:
 
 ## Authentication
 
-This plugin uses plugin-managed bearer auth.
+This plugin uses the current Gateway HTTP auth.
 
-Send either:
+Send the same credentials you use for other Gateway HTTP APIs:
 
 - `Authorization: Bearer <token>`
-- `x-openclaw-agent-provisioner-token: <token>`
 
-The token comes from plugin config `authToken` or `OPENCLAW_AGENT_PROVISIONER_TOKEN`.
+Auth source:
+
+- token mode: `gateway.auth.token` or `OPENCLAW_GATEWAY_TOKEN`
+- password mode: `gateway.auth.password` or `OPENCLAW_GATEWAY_PASSWORD`
+
+See [Gateway Authentication](/gateway/authentication).
 
 ## Request body
 
@@ -104,28 +108,28 @@ Set common environment variables first:
 
 ```bash
 export OPENCLAW_BASE_URL='http://127.0.0.1:18789'
-export OPENCLAW_AGENT_PROVISIONER_TOKEN='your-token'
+export OPENCLAW_GATEWAY_TOKEN='your-token'
 ```
 
 ### List agents
 
 ```bash
 curl -sS "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents" \
-  -H "Authorization: Bearer $OPENCLAW_AGENT_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ### Get one agent
 
 ```bash
 curl -sS "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot" \
-  -H "Authorization: Bearer $OPENCLAW_AGENT_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ### Create an agent
 
 ```bash
 curl -sS -X POST "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents" \
-  -H "Authorization: Bearer $OPENCLAW_AGENT_PROVISIONER_TOKEN" \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "ops-bot",
@@ -141,7 +145,7 @@ curl -sS -X POST "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents" \
 
 ```bash
 curl -sS -X PUT "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot" \
-  -H "Authorization: Bearer $OPENCLAW_AGENT_PROVISIONER_TOKEN" \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "Ops Bot",
@@ -155,7 +159,7 @@ curl -sS -X PUT "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot" \
 
 ```bash
 curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot" \
-  -H "Authorization: Bearer $OPENCLAW_AGENT_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ## Notes

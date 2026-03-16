@@ -28,7 +28,6 @@ import { resolveUserPath } from "../../src/utils.js";
 
 type AgentProvisionerPluginConfig = {
   path?: string;
-  authToken?: string;
 };
 
 type AgentUpsertBody = {
@@ -111,18 +110,6 @@ async function upsertIdentityFile(params: {
   await fs.writeFile(identityPath, next.trimEnd() + "\n", "utf8");
 }
 
-function readBearerToken(req: IncomingMessage): string | undefined {
-  const authHeader = req.headers.authorization;
-  const rawAuth = Array.isArray(authHeader) ? authHeader[0] : authHeader;
-  const bearerMatch = rawAuth?.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch?.[1]?.trim()) {
-    return bearerMatch[1].trim();
-  }
-  const headerToken = req.headers["x-openclaw-agent-provisioner-token"];
-  const token = Array.isArray(headerToken) ? headerToken[0] : headerToken;
-  return token?.trim() || undefined;
-}
-
 function getRequestPath(req: IncomingMessage): string {
   const raw = req.url ?? "/";
   const pathname = raw.split("?", 1)[0] ?? "/";
@@ -146,19 +133,6 @@ function resolveRoute(params: {
     return null;
   }
   return { collection: false, agentId: normalizeAgentId(decodeURIComponent(suffix)) };
-}
-
-function ensureAuthorizedOrReject(params: {
-  req: IncomingMessage;
-  res: ServerResponse;
-  authToken: string;
-}): boolean {
-  const suppliedToken = readBearerToken(params.req);
-  if (suppliedToken !== params.authToken) {
-    respondJson(params.res, 401, { ok: false, error: "unauthorized" });
-    return false;
-  }
-  return true;
 }
 
 function buildDefaultWorkspace(agentId: string): string {
@@ -329,7 +303,6 @@ async function readJsonBody<T>(params: {
 
 function createAgentProvisionerHandler(params: {
   logger: OpenClawPluginApi["logger"];
-  authToken: string;
   basePath: string;
   loadConfig: OpenClawPluginApi["runtime"]["config"]["loadConfig"];
   writeConfigFile: OpenClawPluginApi["runtime"]["config"]["writeConfigFile"];
@@ -353,10 +326,6 @@ function createAgentProvisionerHandler(params: {
     }
 
     try {
-      if (!ensureAuthorizedOrReject({ req, res, authToken: params.authToken })) {
-        return true;
-      }
-
       const cfg = params.loadConfig();
       if (method === "GET" && route.collection) {
         const agents = buildAgentSummaries(cfg)
@@ -443,32 +412,26 @@ const plugin: {
   register(api: OpenClawPluginApi) {
     const pluginConfig = (api.pluginConfig ?? {}) as AgentProvisionerPluginConfig;
     const basePath = pluginConfig.path?.trim() || DEFAULT_ROUTE_PATH;
-    const authToken =
-      pluginConfig.authToken?.trim() || process.env.OPENCLAW_AGENT_PROVISIONER_TOKEN?.trim() || "";
 
     api.registerHttpRoute({
       path: basePath,
       match: "prefix",
-      auth: "plugin",
+      auth: "gateway",
       handler: createAgentProvisionerHandler({
         logger: api.logger,
-        authToken,
         basePath,
         loadConfig: api.runtime.config.loadConfig,
         writeConfigFile: api.runtime.config.writeConfigFile,
       }),
     });
 
-    api.logger.info(
-      `agent-provisioner: route registered at ${basePath} (${authToken ? "token-protected" : "missing-token"})`,
-    );
+    api.logger.info(`agent-provisioner: route registered at ${basePath} (gateway-authenticated)`);
   },
 };
 
 export const __testing = {
   buildAgentRecord,
   createAgentProvisionerHandler,
-  readBearerToken,
   resolveRoute,
   upsertIdentityFile,
 };

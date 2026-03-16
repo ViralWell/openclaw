@@ -74,7 +74,7 @@ describe("agent-provisioner plugin", () => {
         description: "Agent Provisioner",
         source: "test",
         config: {},
-        pluginConfig: { path: "/hooks/agents", authToken: "secret" },
+        pluginConfig: { path: "/hooks/agents" },
         runtime: {
           config: { loadConfig: vi.fn(() => ({})), writeConfigFile: vi.fn() },
           state: { resolveStateDir: vi.fn(() => "/tmp/openclaw-state") },
@@ -87,37 +87,14 @@ describe("agent-provisioner plugin", () => {
     expect(registerHttpRoute.mock.calls[0]?.[0]).toMatchObject({
       path: "/hooks/agents",
       match: "prefix",
-      auth: "plugin",
+      auth: "gateway",
     });
-  });
-
-  it("rejects unauthorized requests", async () => {
-    const handler = __testing.createAgentProvisionerHandler({
-      logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
-      basePath: "/plugins/agent-provisioner/agents",
-      loadConfig: () => ({}),
-      writeConfigFile: vi.fn(),
-    });
-
-    const res = createMockServerResponse();
-    await handler(
-      localReq({
-        method: "GET",
-        headers: {},
-      }),
-      res,
-    );
-
-    expect(res.statusCode).toBe(401);
-    expect(String(res.body)).toContain("unauthorized");
   });
 
   it("creates a new agent via POST", async () => {
     const writeConfigFile = vi.fn();
     const handler = __testing.createAgentProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/agent-provisioner/agents",
       loadConfig: () => ({}),
       writeConfigFile,
@@ -128,7 +105,6 @@ describe("agent-provisioner plugin", () => {
       localReq({
         method: "POST",
         headers: {
-          authorization: "Bearer secret",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -169,7 +145,6 @@ describe("agent-provisioner plugin", () => {
   it("returns a single agent via GET", async () => {
     const handler = __testing.createAgentProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/agent-provisioner/agents",
       loadConfig: () => ({
         agents: {
@@ -192,7 +167,6 @@ describe("agent-provisioner plugin", () => {
       localReq({
         method: "GET",
         url: "/plugins/agent-provisioner/agents/ops-bot",
-        headers: { authorization: "Bearer secret" },
       }),
       res,
     );
@@ -213,7 +187,6 @@ describe("agent-provisioner plugin", () => {
     const writeConfigFile = vi.fn();
     const handler = __testing.createAgentProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/agent-provisioner/agents",
       loadConfig: () => ({
         agents: {
@@ -236,7 +209,6 @@ describe("agent-provisioner plugin", () => {
         method: "PUT",
         url: "/plugins/agent-provisioner/agents/ops-bot",
         headers: {
-          authorization: "Bearer secret",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -266,7 +238,6 @@ describe("agent-provisioner plugin", () => {
     const writeConfigFile = vi.fn();
     const handler = __testing.createAgentProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/agent-provisioner/agents",
       loadConfig: () => ({
         agents: {
@@ -283,7 +254,6 @@ describe("agent-provisioner plugin", () => {
       localReq({
         method: "DELETE",
         url: "/plugins/agent-provisioner/agents/ops-bot",
-        headers: { authorization: "Bearer secret" },
       }),
       res,
     );

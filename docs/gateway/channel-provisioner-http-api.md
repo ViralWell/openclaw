@@ -25,14 +25,18 @@ Endpoints:
 
 ## Authentication
 
-This plugin uses plugin-managed bearer auth.
+This plugin uses the current Gateway HTTP auth.
 
-Send either:
+Send the same credentials you use for other Gateway HTTP APIs:
 
 - `Authorization: Bearer <token>`
-- `x-openclaw-channel-provisioner-token: <token>`
 
-The token comes from plugin config `authToken` or `OPENCLAW_CHANNEL_PROVISIONER_TOKEN`.
+Auth source:
+
+- token mode: `gateway.auth.token` or `OPENCLAW_GATEWAY_TOKEN`
+- password mode: `gateway.auth.password` or `OPENCLAW_GATEWAY_PASSWORD`
+
+See [Gateway Authentication](/gateway/authentication).
 
 ## Request body
 
@@ -73,35 +77,35 @@ Set common environment variables first:
 
 ```bash
 export OPENCLAW_BASE_URL='http://127.0.0.1:18789'
-export OPENCLAW_CHANNEL_PROVISIONER_TOKEN='your-token'
+export OPENCLAW_GATEWAY_TOKEN='your-token'
 ```
 
 ### List channels
 
 ```bash
 curl -sS "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ### Get channel status
 
 ```bash
 curl -sS "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/status" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ### Resolve names to IDs
 
 ```bash
 curl -sS "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/resolve?channel=slack&q=%23general&q=%40jane" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ### Create a Telegram account
 
 ```bash
 curl -sS -X POST "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/telegram/accounts" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN" \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "accountId": "default",
@@ -115,7 +119,7 @@ curl -sS -X POST "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/telegr
 
 ```bash
 curl -sS -X PUT "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/slack/accounts/team-a" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN" \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "config": {
@@ -129,7 +133,7 @@ curl -sS -X PUT "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/slack/a
 
 ```bash
 curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/telegram/accounts/default" \
-  -H "Authorization: Bearer $OPENCLAW_CHANNEL_PROVISIONER_TOKEN"
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
 ```
 
 ## Notes

@@ -169,7 +169,7 @@ describe("channel-provisioner plugin", () => {
         description: "Channel Provisioner",
         source: "test",
         config: {},
-        pluginConfig: { path: "/hooks/channels", authToken: "secret" },
+        pluginConfig: { path: "/hooks/channels" },
         runtime: {
           config: { loadConfig: vi.fn(() => ({})), writeConfigFile: vi.fn() },
         } as never,
@@ -181,7 +181,7 @@ describe("channel-provisioner plugin", () => {
     expect(registerHttpRoute.mock.calls[0]?.[0]).toMatchObject({
       path: "/hooks/channels",
       match: "prefix",
-      auth: "plugin",
+      auth: "gateway",
     });
   });
 
@@ -192,7 +192,6 @@ describe("channel-provisioner plugin", () => {
 
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
       writeConfigFile: vi.fn(),
@@ -202,7 +201,6 @@ describe("channel-provisioner plugin", () => {
     await handler(
       localReq({
         method: "GET",
-        headers: { authorization: "Bearer secret" },
       }),
       res,
     );
@@ -226,7 +224,6 @@ describe("channel-provisioner plugin", () => {
     const writeConfigFile = vi.fn();
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
       writeConfigFile,
@@ -238,7 +235,6 @@ describe("channel-provisioner plugin", () => {
         method: "POST",
         url: "/plugins/channel-provisioner/channels/telegram/accounts",
         headers: {
-          authorization: "Bearer secret",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -265,7 +261,6 @@ describe("channel-provisioner plugin", () => {
 
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
       writeConfigFile: vi.fn(),
@@ -277,7 +272,6 @@ describe("channel-provisioner plugin", () => {
         method: "PUT",
         url: "/plugins/channel-provisioner/channels/telegram/accounts/default",
         headers: {
-          authorization: "Bearer secret",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -303,7 +297,6 @@ describe("channel-provisioner plugin", () => {
     const writeConfigFile = vi.fn();
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
       writeConfigFile,
@@ -314,7 +307,6 @@ describe("channel-provisioner plugin", () => {
       localReq({
         method: "DELETE",
         url: "/plugins/channel-provisioner/channels/telegram/accounts/default",
-        headers: { authorization: "Bearer secret" },
       }),
       res,
     );
@@ -335,7 +327,6 @@ describe("channel-provisioner plugin", () => {
 
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
-      authToken: "secret",
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
       writeConfigFile: vi.fn(),
@@ -346,7 +337,6 @@ describe("channel-provisioner plugin", () => {
       localReq({
         method: "GET",
         url: "/plugins/channel-provisioner/channels/resolve?channel=slack&q=%23general",
-        headers: { authorization: "Bearer secret" },
       }),
       res,
     );

@@ -26,7 +26,6 @@ import { deleteTelegramUpdateOffset } from "../../src/telegram/update-offset-sto
 
 type ChannelProvisionerPluginConfig = {
   path?: string;
-  authToken?: string;
 };
 
 type ChannelAccountBody = {
@@ -71,18 +70,6 @@ function respondJson(res: ServerResponse, statusCode: number, body: unknown): tr
   return true;
 }
 
-function readBearerToken(req: IncomingMessage): string | undefined {
-  const authHeader = req.headers.authorization;
-  const rawAuth = Array.isArray(authHeader) ? authHeader[0] : authHeader;
-  const bearerMatch = rawAuth?.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch?.[1]?.trim()) {
-    return bearerMatch[1].trim();
-  }
-  const headerToken = req.headers["x-openclaw-channel-provisioner-token"];
-  const token = Array.isArray(headerToken) ? headerToken[0] : headerToken;
-  return token?.trim() || undefined;
-}
-
 function getRequestPath(req: IncomingMessage): string {
   const raw = req.url ?? "/";
   const pathname = raw.split("?", 1)[0] ?? "/";
@@ -123,19 +110,6 @@ function resolveChannelsRoute(params: {
     return { kind: "account", channel: parts[0], accountId: normalizeAccountId(parts[2]) };
   }
   return null;
-}
-
-function ensureAuthorizedOrReject(params: {
-  req: IncomingMessage;
-  res: ServerResponse;
-  authToken: string;
-}): boolean {
-  const suppliedToken = readBearerToken(params.req);
-  if (suppliedToken !== params.authToken) {
-    respondJson(params.res, 401, { ok: false, error: "unauthorized" });
-    return false;
-  }
-  return true;
 }
 
 async function readJsonBody<T>(params: {
@@ -473,7 +447,6 @@ async function resolveChannelEntries(params: {
 
 function createChannelProvisionerHandler(params: {
   logger: OpenClawPluginApi["logger"];
-  authToken: string;
   basePath: string;
   loadConfig: OpenClawPluginApi["runtime"]["config"]["loadConfig"];
   writeConfigFile: OpenClawPluginApi["runtime"]["config"]["writeConfigFile"];
@@ -497,10 +470,6 @@ function createChannelProvisionerHandler(params: {
     }
 
     try {
-      if (!ensureAuthorizedOrReject({ req, res, authToken: params.authToken })) {
-        return true;
-      }
-
       const cfg = params.loadConfig();
       if (method === "GET" && (route.kind === "collection" || route.kind === "status")) {
         const channels = await buildChannelsStatus(cfg);
@@ -629,34 +598,26 @@ const plugin: {
   register(api: OpenClawPluginApi) {
     const pluginConfig = (api.pluginConfig ?? {}) as ChannelProvisionerPluginConfig;
     const basePath = pluginConfig.path?.trim() || DEFAULT_ROUTE_PATH;
-    const authToken =
-      pluginConfig.authToken?.trim() ||
-      process.env.OPENCLAW_CHANNEL_PROVISIONER_TOKEN?.trim() ||
-      "";
 
     api.registerHttpRoute({
       path: basePath,
       match: "prefix",
-      auth: "plugin",
+      auth: "gateway",
       handler: createChannelProvisionerHandler({
         logger: api.logger,
-        authToken,
         basePath,
         loadConfig: api.runtime.config.loadConfig,
         writeConfigFile: api.runtime.config.writeConfigFile,
       }),
     });
 
-    api.logger.info(
-      `channel-provisioner: route registered at ${basePath} (${authToken ? "token-protected" : "missing-token"})`,
-    );
+    api.logger.info(`channel-provisioner: route registered at ${basePath} (gateway-authenticated)`);
   },
 };
 
 export const __testing = {
   buildChannelSetupInput,
   createChannelProvisionerHandler,
-  readBearerToken,
   resolveChannelsRoute,
 };
 

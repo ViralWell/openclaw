@@ -8,9 +8,6 @@
     "properties": {
       "path": {
         "type": "string"
-      },
-      "authToken": {
-        "type": "string"
       }
     }
   },
@@ -18,10 +15,6 @@
     "path": {
       "label": "HTTP Path",
       "help": "Plugin route path exposed by the gateway, for example /plugins/channel-provisioner/channels."
-    },
-    "authToken": {
-      "label": "Auth Token",
-      "help": "Bearer token required by the channel provisioning endpoint. Can also be set with OPENCLAW_CHANNEL_PROVISIONER_TOKEN."
     }
   }
 }
