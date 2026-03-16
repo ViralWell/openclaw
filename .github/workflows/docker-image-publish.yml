@@ -127,19 +127,27 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          ssh "${EC2_USER}@${EC2_HOST}" "bash -s" <<EOF
+          ssh "${EC2_USER}@${EC2_HOST}" "bash -s" -- \
+            "${EC2_OPENCLAW_DIR}" \
+            "${DOCKERHUB_USERNAME}" \
+            "${DOCKERHUB_TOKEN}" \
+            "${DEPLOY_IMAGE}" <<'EOF'
           set -euo pipefail
-          cd "${EC2_OPENCLAW_DIR}"
+          ec2_openclaw_dir="$1"
+          dockerhub_username="$2"
+          dockerhub_token="$3"
+          deploy_image="$4"
+          cd "${ec2_openclaw_dir}"
           mkdir -p data
-          echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          echo "${dockerhub_token}" | docker login --username "${dockerhub_username}" --password-stdin
           if [ -f .env ]; then
             if grep -q '^OPENCLAW_IMAGE=' .env; then
-              sed -i.bak \"s|^OPENCLAW_IMAGE=.*|OPENCLAW_IMAGE=${DEPLOY_IMAGE}|\" .env
+              sed -i.bak "s|^OPENCLAW_IMAGE=.*|OPENCLAW_IMAGE=${deploy_image}|" .env
             else
-              printf '\nOPENCLAW_IMAGE=%s\n' "${DEPLOY_IMAGE}" >> .env
+              printf '\nOPENCLAW_IMAGE=%s\n' "${deploy_image}" >> .env
             fi
           else
-            printf 'OPENCLAW_IMAGE=%s\n' "${DEPLOY_IMAGE}" > .env
+            printf 'OPENCLAW_IMAGE=%s\n' "${deploy_image}" > .env
           fi
           docker compose pull openclaw-gateway openclaw-cli
           docker compose up -d --force-recreate openclaw-gateway
