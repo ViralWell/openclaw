@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import {
   beginWebhookRequestPipelineOrReject,
+  emptyPluginConfigSchema,
   readJsonWebhookBodyOrReject,
   type OpenClawConfig,
   type OpenClawPluginApi,
@@ -400,11 +401,13 @@ const plugin: {
   id: string;
   name: string;
   description: string;
+  configSchema: ReturnType<typeof emptyPluginConfigSchema>;
   register: (api: OpenClawPluginApi) => void;
 } = {
   id: "agent-provisioner",
   name: "Agent Provisioner",
   description: "Expose HTTP endpoints that sync OpenClaw agents.",
+  configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
     const basePath = DEFAULT_ROUTE_PATH;
 

@@ -1,5 +1,10 @@
 {
   "id": "channel-provisioner",
   "name": "Channel Provisioner",
-  "description": "Expose external HTTP endpoints that manage OpenClaw channel accounts."
+  "description": "Expose external HTTP endpoints that manage OpenClaw channel accounts.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
 }

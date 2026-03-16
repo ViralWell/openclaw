@@ -1,5 +1,10 @@
 {
   "id": "agent-provisioner",
   "name": "Agent Provisioner",
-  "description": "Expose an external HTTP endpoint that creates or updates OpenClaw agents."
+  "description": "Expose an external HTTP endpoint that creates or updates OpenClaw agents.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
 }
