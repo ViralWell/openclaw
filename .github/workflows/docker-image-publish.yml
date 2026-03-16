@@ -5,11 +5,11 @@ on:
     branches:
       - main
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   REGISTRY: docker.io
   IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE }}
   EC2_OPENCLAW_DIR: /home/ubuntu/openclaw
@@ -99,6 +99,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.EC2_SSH_HOST }}" >> ~/.ssh/known_hosts
 
+      - name: Upload Docker Compose file
+        env:
+          EC2_HOST: ${{ secrets.EC2_SSH_HOST }}
+          EC2_USER: ${{ secrets.EC2_SSH_USER }}
+        run: |
+          ssh "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_OPENCLAW_DIR}'"
+          scp docker-compose.yml "${EC2_USER}@${EC2_HOST}:${EC2_OPENCLAW_DIR}/docker-compose.yml"
+
       - name: Resolve deploy image
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
@@ -118,7 +126,6 @@ jobs:
         run: |
           ssh "${EC2_USER}@${EC2_HOST}" "bash -s" <<EOF
           set -euo pipefail
-          mkdir -p "${EC2_OPENCLAW_DIR}"
           cd "${EC2_OPENCLAW_DIR}"
           mkdir -p data
           echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
