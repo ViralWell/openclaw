@@ -21,7 +21,8 @@ services:
     # group_add:
     #   - "${DOCKER_GID:-999}"
     ports:
-      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "${OPENCLAW_GATEWAY_HTTP_PORT:-80}:18789"
+      - "${OPENCLAW_GATEWAY_HTTPS_PORT:-443}:18789"
     init: true
     restart: unless-stopped
     command:
@@ -29,6 +30,7 @@ services:
         "node",
         "dist/index.js",
         "gateway",
+        "--allow-unconfigured",
         "--bind",
         "${OPENCLAW_GATEWAY_BIND:-lan}",
         "--port",
