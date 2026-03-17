@@ -698,7 +698,7 @@ describe("channel-provisioner plugin", () => {
     vi.doUnmock("../whatsapp/src/runtime.js");
   });
 
-  it("handles GET /login/wait for WhatsApp", async () => {
+  it("handles GET /login/wait for WhatsApp and auto-creates config", async () => {
     const waitForWebLoginMock = vi.fn().mockResolvedValue({
       connected: true,
       message: "WhatsApp connected successfully.",
@@ -714,11 +714,24 @@ describe("channel-provisioner plugin", () => {
       }),
     }));
 
+    const whatsapp = makePlugin({
+      id: "whatsapp",
+      accountIds: [], // Empty means account doesn't exist yet
+    });
+    // Mock resolveAccount to return account info
+    whatsapp.config.resolveAccount = vi.fn(() => ({
+      accountId: "default",
+      authDir: "~/.openclaw/sessions/whatsapp/default",
+      enabled: true,
+    })) as any;
+    getChannelPluginMock.mockImplementation((id) => (id === "whatsapp" ? whatsapp : undefined));
+
+    const writeConfigFile = vi.fn();
     const handler = __testing.createChannelProvisionerHandler({
       logger: { info() {}, warn() {}, error() {} },
       basePath: "/plugins/channel-provisioner/channels",
       loadConfig: () => ({}),
-      writeConfigFile: vi.fn(),
+      writeConfigFile,
     });
 
     const res = createMockServerResponse();
@@ -731,7 +744,8 @@ describe("channel-provisioner plugin", () => {
     );
 
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(String(res.body))).toMatchObject({
+    const body = JSON.parse(String(res.body));
+    expect(body).toMatchObject({
       ok: true,
       channel: "whatsapp",
       accountId: "default",
@@ -743,6 +757,9 @@ describe("channel-provisioner plugin", () => {
       timeoutMs: 5000,
       runtime: expect.any(Object),
     });
+
+    // Verify config was auto-created after successful login
+    expect(writeConfigFile).toHaveBeenCalled();
 
     vi.doUnmock("../whatsapp/src/runtime.js");
   });

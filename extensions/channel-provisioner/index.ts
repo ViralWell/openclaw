@@ -802,6 +802,52 @@ function createChannelProvisionerHandler(params: {
               timeoutMs,
               runtime: defaultRuntime,
             });
+
+            // If connected successfully, ensure account config exists
+            if (result.connected) {
+              const plugin = getChannelPlugin(channel);
+              if (plugin) {
+                const existingIds = new Set(plugin.config.listAccountIds(cfg));
+                const needsConfig = !existingIds.has(accountId);
+
+                if (needsConfig) {
+                  // Auto-create account config after successful login
+                  const account = plugin.config.resolveAccount(cfg, accountId);
+                  const input = buildChannelSetupInput({
+                    authDir: account.authDir,
+                  });
+
+                  let nextConfig = cfg;
+                  if (accountId !== DEFAULT_ACCOUNT_ID) {
+                    nextConfig = moveSingleAccountChannelSectionToDefaultAccount({
+                      cfg: nextConfig,
+                      channelKey: channel,
+                    });
+                  }
+
+                  nextConfig = applyChannelAccountConfig({
+                    cfg: nextConfig,
+                    channel,
+                    accountId,
+                    input,
+                  });
+
+                  // Set dmPolicy to open by default
+                  nextConfig = applyProvisionedDmPolicy({
+                    cfg: nextConfig,
+                    channel,
+                    accountId,
+                    dmPolicy: "open",
+                  });
+
+                  await params.writeConfigFile(nextConfig);
+                  params.logger.info(
+                    `channel-provisioner: auto-created ${channel} account config for "${accountId}" after successful login`,
+                  );
+                }
+              }
+            }
+
             params.logger.info(
               `channel-provisioner: WhatsApp login wait completed for account "${accountId}" (connected=${result.connected})`,
             );
