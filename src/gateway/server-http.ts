@@ -184,7 +184,14 @@ async function canRevealReadinessDetails(params: {
   trustedProxies: string[];
   allowRealIpFallback: boolean;
 }): Promise<boolean> {
-  if (isLocalDirectRequest(params.req, params.trustedProxies, params.allowRealIpFallback)) {
+  if (
+    isLocalDirectRequest(
+      params.req,
+      params.trustedProxies,
+      params.allowRealIpFallback,
+      params.resolvedAuth.allowPrivateNetwork === true,
+    )
+  ) {
     return true;
   }
   if (params.resolvedAuth.mode === "none") {

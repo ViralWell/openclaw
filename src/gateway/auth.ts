@@ -16,6 +16,7 @@ import { resolveGatewayCredentialsFromValues } from "./credentials.js";
 import {
   isLocalishHost,
   isLoopbackAddress,
+  isPrivateOrLoopbackAddress,
   resolveRequestClientIp,
   isTrustedProxyAddress,
   resolveClientIp,
@@ -35,6 +36,7 @@ export type ResolvedGatewayAuth = {
   token?: string;
   password?: string;
   allowTailscale: boolean;
+  allowPrivateNetwork?: boolean;
   trustedProxy?: GatewayTrustedProxyConfig;
 };
 
@@ -82,6 +84,8 @@ export type AuthorizeGatewayConnectParams = {
   rateLimitScope?: string;
   /** Trust X-Real-IP only when explicitly enabled. */
   allowRealIpFallback?: boolean;
+  /** Allow private network addresses to bypass authentication. */
+  allowPrivateNetwork?: boolean;
 };
 
 type TailscaleUser = {
@@ -117,12 +121,19 @@ export function isLocalDirectRequest(
   req?: IncomingMessage,
   trustedProxies?: string[],
   allowRealIpFallback = false,
+  allowPrivateNetwork = false,
 ): boolean {
   if (!req) {
     return false;
   }
   const clientIp = resolveRequestClientIp(req, trustedProxies, allowRealIpFallback) ?? "";
-  if (!isLoopbackAddress(clientIp)) {
+
+  // Check if client IP is allowed
+  const isAllowedIp = allowPrivateNetwork
+    ? isLoopbackAddress(clientIp) || isPrivateOrLoopbackAddress(clientIp)
+    : isLoopbackAddress(clientIp);
+
+  if (!isAllowedIp) {
     return false;
   }
 
@@ -227,6 +238,9 @@ export function resolveGatewayAuth(params: {
     if (authOverride.allowTailscale !== undefined) {
       authConfig.allowTailscale = authOverride.allowTailscale;
     }
+    if (authOverride.dangerouslyAllowPrivateNetwork !== undefined) {
+      authConfig.dangerouslyAllowPrivateNetwork = authOverride.dangerouslyAllowPrivateNetwork;
+    }
     if (authOverride.rateLimit !== undefined) {
       authConfig.rateLimit = authOverride.rateLimit;
     }
@@ -272,12 +286,15 @@ export function resolveGatewayAuth(params: {
     authConfig.allowTailscale ??
     (params.tailscaleMode === "serve" && mode !== "password" && mode !== "trusted-proxy");
 
+  const allowPrivateNetwork = authConfig.dangerouslyAllowPrivateNetwork === true;
+
   return {
     mode,
     modeSource,
     token,
     password,
     allowTailscale,
+    allowPrivateNetwork,
     trustedProxy,
   };
 }
@@ -377,6 +394,7 @@ export async function authorizeGatewayConnect(
     req,
     trustedProxies,
     params.allowRealIpFallback === true,
+    params.allowPrivateNetwork === true || auth.allowPrivateNetwork === true,
   );
 
   if (auth.mode === "trusted-proxy") {

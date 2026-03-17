@@ -156,6 +156,12 @@ export type GatewayAuthConfig = {
   password?: SecretInput;
   /** Allow Tailscale identity headers when serve mode is enabled. */
   allowTailscale?: boolean;
+  /**
+   * DANGEROUS: Allow private network addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+   * to bypass authentication when accessing the gateway directly.
+   * Only enable this in trusted internal networks. Default: false.
+   */
+  dangerouslyAllowPrivateNetwork?: boolean;
   /** Rate-limit configuration for failed authentication attempts. */
   rateLimit?: GatewayAuthRateLimitConfig;
   /**

@@ -78,7 +78,14 @@ export async function authorizeCanvasRequest(params: {
   if (malformedScopedPath) {
     return { ok: false, reason: "unauthorized" };
   }
-  if (isLocalDirectRequest(req, trustedProxies, allowRealIpFallback)) {
+  if (
+    isLocalDirectRequest(
+      req,
+      trustedProxies,
+      allowRealIpFallback,
+      auth.allowPrivateNetwork === true,
+    )
+  ) {
     return { ok: true };
   }
 
