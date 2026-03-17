@@ -710,43 +710,44 @@ function createChannelProvisionerHandler(params: {
         if (channel === "whatsapp") {
           const accountId = normalizeAccountId(url.searchParams.get("account"));
           const verbose = url.searchParams.get("verbose") === "true";
-          const force = url.searchParams.get("force") === "true";
+          const agentId = url.searchParams.get("agentId")?.trim() || undefined;
           try {
-            // Ensure account config exists before starting login
+            // Ensure account config + binding exists before starting login
             const plugin = getChannelPlugin(channel);
+            let upsertResult: Awaited<ReturnType<typeof upsertChannelAccount>> | undefined;
             if (plugin) {
-              const existingIds = new Set(plugin.config.listAccountIds(cfg));
-              if (!existingIds.has(accountId)) {
-                await upsertChannelAccount({
-                  cfg,
-                  channel,
-                  accountId,
-                  body: { channel, config: {} },
-                  writeConfigFile: params.writeConfigFile,
-                });
-                params.logger.info(
-                  `channel-provisioner: auto-created ${channel} account "${accountId}" before login`,
-                );
-              }
+              upsertResult = await upsertChannelAccount({
+                cfg,
+                channel,
+                accountId,
+                body: { channel, ...(agentId ? { agentId } : {}), config: {} },
+                writeConfigFile: params.writeConfigFile,
+              });
+              params.logger.info(
+                `channel-provisioner: ${upsertResult.created ? "created" : "updated"} ${channel} account "${accountId}" for login`,
+              );
             }
 
             // Import WhatsApp runtime dynamically
             const { getWhatsAppRuntime } = await import("../whatsapp/src/runtime.js");
-            const result = await getWhatsAppRuntime().channel.whatsapp.startWebLoginWithQr({
-              accountId,
+
+            // Use loginWeb (same as CLI) which handles code 515 restart in-process
+            await getWhatsAppRuntime().channel.whatsapp.loginWeb(
               verbose,
-              force,
-              runtime: defaultRuntime,
-            });
+              undefined,
+              defaultRuntime,
+              accountId,
+            );
+
             params.logger.info(
-              `channel-provisioner: WhatsApp login started for account "${accountId}"`,
+              `channel-provisioner: WhatsApp login completed for account "${accountId}"`,
             );
             return respondJson(res, 200, {
               ok: true,
               channel,
               accountId,
-              qrDataUrl: result.qrDataUrl,
-              message: result.message,
+              message: "WhatsApp linked successfully",
+              ...(upsertResult?.binding ? { binding: upsertResult.binding } : {}),
             });
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

@@ -646,26 +646,26 @@ describe("channel-provisioner plugin", () => {
     });
   });
 
-  it("handles POST /login for WhatsApp with QR code and auto-creates account config", async () => {
-    const startWebLoginWithQrMock = vi.fn().mockResolvedValue({
-      qrDataUrl:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      message: "Scan this QR in WhatsApp → Linked Devices.",
-    });
+  it("handles POST /login for WhatsApp with account upsert and agent binding", async () => {
+    const loginWebMock = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock("../whatsapp/src/runtime.js", () => ({
       getWhatsAppRuntime: () => ({
         channel: {
           whatsapp: {
-            startWebLoginWithQr: startWebLoginWithQrMock,
+            loginWeb: loginWebMock,
           },
         },
       }),
     }));
 
-    // accountIds is empty → account doesn't exist yet
     const whatsapp = makePlugin({ id: "whatsapp", accountIds: [] });
     getChannelPluginMock.mockImplementation((id) => (id === "whatsapp" ? whatsapp : undefined));
+    buildChannelAccountSnapshotMock.mockResolvedValue({
+      accountId: "default",
+      configured: true,
+      enabled: true,
+    });
 
     const writeConfigFile = vi.fn();
     const handler = __testing.createChannelProvisionerHandler({
@@ -679,30 +679,24 @@ describe("channel-provisioner plugin", () => {
     await handler(
       localReq({
         method: "POST",
-        url: "/plugins/channel-provisioner/channels/login?channel=whatsapp&account=default&verbose=true",
+        url: "/plugins/channel-provisioner/channels/login?channel=whatsapp&account=default&verbose=true&agentId=my-agent",
       }),
       res,
     );
 
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(String(res.body));
-    expect(body).toMatchObject({
+    expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       channel: "whatsapp",
       accountId: "default",
-      message: "Scan this QR in WhatsApp → Linked Devices.",
+      message: "WhatsApp linked successfully",
     });
-    expect(body.qrDataUrl).toContain("data:image/png;base64,");
 
-    // Account config should have been auto-created via upsertChannelAccount
+    // Account config + binding should have been created
     expect(writeConfigFile).toHaveBeenCalled();
 
-    expect(startWebLoginWithQrMock).toHaveBeenCalledWith({
-      accountId: "default",
-      verbose: true,
-      force: false,
-      runtime: expect.any(Object),
-    });
+    // loginWeb should be called with same args as CLI
+    expect(loginWebMock).toHaveBeenCalledWith(true, undefined, expect.any(Object), "default");
 
     vi.doUnmock("../whatsapp/src/runtime.js");
   });
