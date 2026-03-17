@@ -163,6 +163,9 @@ function makePlugin(overrides?: {
   accountIds?: string[];
   deleteAccount?: boolean;
   resolve?: boolean;
+  auth?: {
+    login?: (params: any) => Promise<void>;
+  };
 }) {
   const accountIds = overrides?.accountIds ?? ["default"];
   const id = overrides?.id ?? "telegram";
@@ -192,6 +195,7 @@ function makePlugin(overrides?: {
               })),
             ),
           },
+    ...(overrides?.auth ? { auth: overrides.auth } : {}),
   };
 }
 
@@ -631,6 +635,200 @@ describe("channel-provisioner plugin", () => {
           accountId: "default",
           config: { token: "abc" },
         }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: false,
+      error: "channel is required",
+    });
+  });
+
+  it("handles POST /login for WhatsApp with QR code", async () => {
+    const startWebLoginWithQrMock = vi.fn().mockResolvedValue({
+      qrDataUrl:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      message: "Scan this QR in WhatsApp → Linked Devices.",
+    });
+
+    vi.doMock("../whatsapp/src/runtime.js", () => ({
+      getWhatsAppRuntime: () => ({
+        channel: {
+          whatsapp: {
+            startWebLoginWithQr: startWebLoginWithQrMock,
+          },
+        },
+      }),
+    }));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/login?channel=whatsapp&account=default&verbose=true",
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(String(res.body));
+    expect(body).toMatchObject({
+      ok: true,
+      channel: "whatsapp",
+      accountId: "default",
+      message: "Scan this QR in WhatsApp → Linked Devices.",
+    });
+    expect(body.qrDataUrl).toContain("data:image/png;base64,");
+    expect(startWebLoginWithQrMock).toHaveBeenCalledWith({
+      accountId: "default",
+      verbose: true,
+      force: false,
+      runtime: expect.any(Object),
+    });
+
+    vi.doUnmock("../whatsapp/src/runtime.js");
+  });
+
+  it("handles GET /login/wait for WhatsApp", async () => {
+    const waitForWebLoginMock = vi.fn().mockResolvedValue({
+      connected: true,
+      message: "WhatsApp connected successfully.",
+    });
+
+    vi.doMock("../whatsapp/src/runtime.js", () => ({
+      getWhatsAppRuntime: () => ({
+        channel: {
+          whatsapp: {
+            waitForWebLogin: waitForWebLoginMock,
+          },
+        },
+      }),
+    }));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "GET",
+        url: "/plugins/channel-provisioner/channels/login/wait?channel=whatsapp&account=default&timeout=5000",
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: true,
+      channel: "whatsapp",
+      accountId: "default",
+      connected: true,
+      message: "WhatsApp connected successfully.",
+    });
+    expect(waitForWebLoginMock).toHaveBeenCalledWith({
+      accountId: "default",
+      timeoutMs: 5000,
+      runtime: expect.any(Object),
+    });
+
+    vi.doUnmock("../whatsapp/src/runtime.js");
+  });
+
+  it("handles POST /login for channels with auth.login support", async () => {
+    const loginMock = vi.fn().mockResolvedValue(undefined);
+    const telegram = makePlugin({
+      id: "telegram",
+      accountIds: ["default"],
+      auth: {
+        login: loginMock,
+      },
+    });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/login?channel=telegram&account=default&verbose=true",
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: true,
+      channel: "telegram",
+      accountId: "default",
+      message: "Login completed successfully",
+    });
+    expect(loginMock).toHaveBeenCalledWith({
+      cfg: {},
+      accountId: "default",
+      runtime: expect.any(Object),
+      verbose: true,
+    });
+  });
+
+  it("rejects POST /login when channel does not support login", async () => {
+    const telegram = makePlugin({ accountIds: ["default"] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/login?channel=telegram&account=default",
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: false,
+      error: "Channel telegram does not support login",
+    });
+  });
+
+  it("rejects POST /login when channel is missing", async () => {
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/login",
       }),
       res,
     );

@@ -26,6 +26,21 @@ import {
   type OpenClawPluginApi,
 } from "openclaw/plugin-sdk/channel-provisioner";
 
+/**
+ * Channel Provisioner Plugin
+ *
+ * Exposes HTTP endpoints for managing OpenClaw channel accounts:
+ * - GET /channels - List all channels and accounts
+ * - GET /channels/status - Get channel status
+ * - GET /channels/resolve - Resolve channel targets
+ * - GET /channels/accounts - List accounts
+ * - POST /channels/accounts - Create account
+ * - PUT /channels/accounts/{accountId} - Update account
+ * - DELETE /channels/accounts/{accountId} - Delete account
+ * - POST /channels/login - Start channel login (returns QR code for WhatsApp)
+ * - GET /channels/login/wait - Wait for login completion (WhatsApp only)
+ */
+
 type ChannelAccountMutationBody = {
   channel: string;
   accountId?: string;
@@ -64,7 +79,9 @@ type ChannelsRoute =
   | { kind: "status" }
   | { kind: "resolve" }
   | { kind: "accounts" }
-  | { kind: "account"; accountId: string };
+  | { kind: "account"; accountId: string }
+  | { kind: "login" }
+  | { kind: "login-wait" };
 
 const DEFAULT_ROUTE_PATH = "/plugins/channel-provisioner/channels";
 
@@ -98,6 +115,12 @@ function resolveChannelsRoute(params: {
   }
   if (pathname === `${params.basePath}/resolve`) {
     return { kind: "resolve" };
+  }
+  if (pathname === `${params.basePath}/login`) {
+    return { kind: "login" };
+  }
+  if (pathname === `${params.basePath}/login/wait`) {
+    return { kind: "login-wait" };
   }
   const prefix = `${params.basePath}/`;
   if (!pathname.startsWith(prefix)) {
@@ -563,7 +586,10 @@ function createChannelProvisionerHandler(params: {
     }
 
     const method = req.method ?? "GET";
-    const needsBody = method === "POST" || method === "PUT";
+    const needsBody =
+      (method === "POST" || method === "PUT") &&
+      route.kind !== "login" &&
+      route.kind !== "login-wait";
     const pipeline = beginWebhookRequestPipelineOrReject({
       req,
       res,
@@ -670,6 +696,137 @@ function createChannelProvisionerHandler(params: {
           deleted: true,
           channel,
           accountId: route.accountId,
+        });
+      }
+
+      if (method === "POST" && route.kind === "login") {
+        const url = getRequestUrl(req);
+        const channel = normalizeChannelId(url.searchParams.get("channel"));
+        if (!channel) {
+          return respondJson(res, 400, { ok: false, error: "channel is required" });
+        }
+
+        // For WhatsApp, use the QR-based login flow
+        if (channel === "whatsapp") {
+          const accountId = normalizeAccountId(url.searchParams.get("account"));
+          const verbose = url.searchParams.get("verbose") === "true";
+          const force = url.searchParams.get("force") === "true";
+          try {
+            // Import WhatsApp runtime dynamically
+            const { getWhatsAppRuntime } = await import("../whatsapp/src/runtime.js");
+            const result = await getWhatsAppRuntime().channel.whatsapp.startWebLoginWithQr({
+              accountId,
+              verbose,
+              force,
+              runtime: defaultRuntime,
+            });
+            params.logger.info(
+              `channel-provisioner: WhatsApp login started for account "${accountId}"`,
+            );
+            return respondJson(res, 200, {
+              ok: true,
+              channel,
+              accountId,
+              qrDataUrl: result.qrDataUrl,
+              message: result.message,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            params.logger.warn(`channel-provisioner: WhatsApp login failed (${message})`);
+            return respondJson(res, 400, {
+              ok: false,
+              error: message,
+              channel,
+              accountId: normalizeAccountId(url.searchParams.get("account")),
+            });
+          }
+        }
+
+        // For other channels, use the generic auth.login if available
+        const plugin = getChannelPlugin(channel);
+        if (!plugin) {
+          return respondJson(res, 400, { ok: false, error: `Unknown channel "${channel}"` });
+        }
+        if (!plugin.auth?.login) {
+          return respondJson(res, 400, {
+            ok: false,
+            error: `Channel ${channel} does not support login`,
+          });
+        }
+        const accountId = normalizeAccountId(url.searchParams.get("account"));
+        const verbose = url.searchParams.get("verbose") === "true";
+        try {
+          await plugin.auth.login({
+            cfg,
+            accountId,
+            runtime: defaultRuntime,
+            verbose,
+          });
+          params.logger.info(
+            `channel-provisioner: login completed for ${channel} account "${accountId}"`,
+          );
+          return respondJson(res, 200, {
+            ok: true,
+            channel,
+            accountId,
+            message: "Login completed successfully",
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          params.logger.warn(`channel-provisioner: login failed for ${channel} (${message})`);
+          return respondJson(res, 400, {
+            ok: false,
+            error: message,
+            channel,
+            accountId,
+          });
+        }
+      }
+
+      if (method === "GET" && route.kind === "login-wait") {
+        const url = getRequestUrl(req);
+        const channel = normalizeChannelId(url.searchParams.get("channel"));
+        if (!channel) {
+          return respondJson(res, 400, { ok: false, error: "channel is required" });
+        }
+
+        // Currently only WhatsApp supports wait-based login
+        if (channel === "whatsapp") {
+          const accountId = normalizeAccountId(url.searchParams.get("account"));
+          const timeoutMs = pickNumber(url.searchParams.get("timeout"));
+          try {
+            // Import WhatsApp runtime dynamically
+            const { getWhatsAppRuntime } = await import("../whatsapp/src/runtime.js");
+            const result = await getWhatsAppRuntime().channel.whatsapp.waitForWebLogin({
+              accountId,
+              timeoutMs,
+              runtime: defaultRuntime,
+            });
+            params.logger.info(
+              `channel-provisioner: WhatsApp login wait completed for account "${accountId}" (connected=${result.connected})`,
+            );
+            return respondJson(res, 200, {
+              ok: true,
+              channel,
+              accountId,
+              connected: result.connected,
+              message: result.message,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            params.logger.warn(`channel-provisioner: WhatsApp login wait failed (${message})`);
+            return respondJson(res, 400, {
+              ok: false,
+              error: message,
+              channel,
+              accountId,
+            });
+          }
+        }
+
+        return respondJson(res, 400, {
+          ok: false,
+          error: `Channel ${channel} does not support wait-based login`,
         });
       }
 
