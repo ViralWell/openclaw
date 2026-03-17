@@ -23,6 +23,7 @@ export { addWildcardAllowFrom } from "../channels/plugins/onboarding/helpers.js"
 export { patchScopedAccountConfig } from "../channels/plugins/setup-helpers.js";
 export { buildChannelAccountSnapshot } from "../channels/plugins/status.js";
 export { applyChannelAccountConfig } from "../commands/channels/add-mutators.js";
+export { applyAgentBindings, describeBinding } from "../commands/agents.bindings.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 export { defaultRuntime } from "../runtime.js";
 export { resolveTelegramAccount } from "../telegram/accounts.js";

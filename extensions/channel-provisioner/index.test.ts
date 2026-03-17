@@ -4,17 +4,26 @@ import { createMockServerResponse } from "../../src/test-utils/mock-http-respons
 import { createTestPluginApi } from "../test-utils/plugin-api.js";
 
 const {
+  applyAgentBindingsMock,
   buildChannelAccountSnapshotMock,
   getChannelPluginMock,
   listChannelPluginsMock,
   normalizeChannelIdMock,
   addWildcardAllowFromMock,
   applyChannelAccountConfigMock,
+  describeBindingMock,
   patchScopedAccountConfigMock,
   moveSingleAccountChannelSectionToDefaultAccountMock,
   resolveTelegramAccountMock,
   deleteTelegramUpdateOffsetMock,
 } = vi.hoisted(() => ({
+  applyAgentBindingsMock: vi.fn((cfg) => ({
+    config: cfg,
+    added: [],
+    updated: [],
+    skipped: [],
+    conflicts: [],
+  })),
   buildChannelAccountSnapshotMock: vi.fn(),
   getChannelPluginMock: vi.fn(),
   listChannelPluginsMock: vi.fn(),
@@ -26,6 +35,10 @@ const {
     return entries.includes("*") ? entries : [...entries, "*"];
   }),
   applyChannelAccountConfigMock: vi.fn(({ cfg }) => cfg),
+  describeBindingMock: vi.fn((binding) => {
+    const accountId = binding.match?.accountId ? ` accountId=${binding.match.accountId}` : "";
+    return `${binding.match.channel}${accountId}`;
+  }),
   patchScopedAccountConfigMock: vi.fn(({ cfg, channelKey, accountId, patch }) => ({
     ...cfg,
     channels: {
@@ -61,6 +74,11 @@ vi.mock("../../src/channels/plugins/index.js", () => ({
 
 vi.mock("../../src/commands/channels/add-mutators.js", () => ({
   applyChannelAccountConfig: applyChannelAccountConfigMock,
+}));
+
+vi.mock("../../src/commands/agents.bindings.js", () => ({
+  applyAgentBindings: applyAgentBindingsMock,
+  describeBinding: describeBindingMock,
 }));
 
 vi.mock("../../src/channels/plugins/onboarding/helpers.js", () => ({
@@ -180,6 +198,13 @@ function makePlugin(overrides?: {
 describe("channel-provisioner plugin", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    applyAgentBindingsMock.mockImplementation((cfg) => ({
+      config: cfg,
+      added: [],
+      updated: [],
+      skipped: [],
+      conflicts: [],
+    }));
     buildChannelAccountSnapshotMock.mockResolvedValue({
       accountId: "default",
       configured: true,
@@ -328,6 +353,116 @@ describe("channel-provisioner plugin", () => {
       created: false,
       updated: true,
       account: { accountId: "default", channel: "telegram" },
+    });
+  });
+
+  it("adds an account binding when agentId is provided", async () => {
+    const telegram = makePlugin({ accountIds: [] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+    applyAgentBindingsMock.mockImplementation((_cfg, bindings) => ({
+      config: { bindings },
+      added: bindings,
+      updated: [],
+      skipped: [],
+      conflicts: [],
+    }));
+
+    const writeConfigFile = vi.fn();
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile,
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/accounts",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: "telegram",
+          accountId: "default",
+          agentId: "ops",
+          config: { token: "abc" },
+        }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(applyAgentBindingsMock).toHaveBeenCalledWith(expect.anything(), [
+      {
+        type: "route",
+        agentId: "ops",
+        match: { channel: "telegram", accountId: "default" },
+      },
+    ]);
+    expect(writeConfigFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bindings: [
+          {
+            type: "route",
+            agentId: "ops",
+            match: { channel: "telegram", accountId: "default" },
+          },
+        ],
+      }),
+    );
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: true,
+      binding: {
+        agentId: "ops",
+        description: "telegram accountId=default",
+      },
+    });
+  });
+
+  it("fails the request when the requested binding conflicts", async () => {
+    const telegram = makePlugin({ accountIds: [] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+    applyAgentBindingsMock.mockImplementation((cfg, bindings) => ({
+      config: cfg,
+      added: [],
+      updated: [],
+      skipped: [],
+      conflicts: [{ binding: bindings[0], existingAgentId: "main" }],
+    }));
+
+    const writeConfigFile = vi.fn();
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile,
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/accounts",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: "telegram",
+          accountId: "default",
+          agentId: "ops",
+          config: { token: "abc" },
+        }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(writeConfigFile).not.toHaveBeenCalled();
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: false,
+      error: "Binding conflict: telegram accountId=default (agent=main)",
     });
   });
 

@@ -56,6 +56,7 @@ See [Gateway Authentication](/gateway/authentication).
 {
   "channel": "telegram",
   "accountId": "default",
+  "agentId": "ops",
   "config": {
     "token": "123:abc",
     "botToken": "xoxb-...",
@@ -71,10 +72,12 @@ Notes:
 - `channel` is required on `POST` and `PUT`, and required as a query parameter on `DELETE`.
 - `accountId` is optional for `POST`. When omitted, the plugin uses the channel's default account id.
 - `accountId` comes from the URL on `PUT` and `DELETE`.
+- `agentId` is optional on `POST` and `PUT`. When present, the plugin also writes an account-scoped route binding so the provisioned channel account immediately routes to that agent.
 - `channel` for `DELETE` is sent as a query parameter.
 - `config` is provider-specific. The plugin currently recognizes fields such as `dmPolicy`, `token`, `tokenFile`, `botToken`, `appToken`, `signalNumber`, `cliPath`, `dbPath`, `service`, `region`, `authDir`, `httpUrl`, `httpHost`, `httpPort`, `webhookPath`, `webhookUrl`, `audienceType`, `audience`, `useEnv`, `homeserver`, `userId`, `accessToken`, `password`, `deviceName`, `initialSyncLimit`, `ship`, `url`, `code`, `groupChannels`, `dmAllowlist`, and `autoDiscoverChannels`.
 - `POST` defaults `config.dmPolicy` to `disabled` when omitted, so newly provisioned channel bindings do not start in pairing mode by default.
 - `PUT` leaves the existing DM policy unchanged unless `config.dmPolicy` is explicitly provided.
+- Binding conflicts still fail the request. The account and binding update are written together, so a conflicting `agentId` does not leave behind a partially provisioned account.
 
 ## Resolve endpoint
 
@@ -102,6 +105,7 @@ Common responses:
 - `GET /channels` and `GET /channels/status` return `{ ok: true, channels: [...] }`
 - `GET /channels/resolve` returns `{ ok: true, results: [...] }`
 - `POST` and `PUT` return `{ ok: true, created, updated, account: {...} }`
+- When `agentId` is applied successfully, `POST` and `PUT` also include `binding: { agentId, description }`
 - `DELETE` returns `{ ok: true, deleted: true, channel: "<channel>", accountId: "<accountId>" }`
 
 ## cURL examples
@@ -143,6 +147,7 @@ curl -sS -X POST "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/accoun
   -d '{
     "channel": "telegram",
     "accountId": "default",
+    "agentId": "ops",
     "config": {
       "token": "123:abc"
     }
@@ -173,6 +178,6 @@ curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/channel-provisioner/channels/acco
 
 ## Notes
 
-- This API manages channel accounts only. Route channel ownership to agents through the agent provisioning API.
+- Use `agentId` when you want channel-account provisioning and multi-agent routing to happen in one request. Binding semantics still follow [Multi-Agent Routing](/concepts/multi-agent).
 - Some channels do not implement account upsert, delete, or resolve. In those cases the plugin returns `400` with a descriptive error.
 - Telegram account token changes also reset the stored update offset so polling restarts cleanly on the next run.

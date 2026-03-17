@@ -5,10 +5,12 @@ import {
   emptyPluginConfigSchema,
   readJsonWebhookBodyOrReject,
   addWildcardAllowFrom,
+  applyAgentBindings,
   applyChannelAccountConfig,
   buildChannelAccountSnapshot,
   defaultRuntime,
   DEFAULT_ACCOUNT_ID,
+  describeBinding,
   deleteTelegramUpdateOffset,
   getChannelPlugin,
   listChannelPlugins,
@@ -27,6 +29,7 @@ import {
 type ChannelAccountMutationBody = {
   channel: string;
   accountId?: string;
+  agentId?: string;
   config?: Record<string, unknown>;
 };
 
@@ -49,6 +52,11 @@ type ChannelRecord = {
   id: string;
   label: string;
   accounts: ChannelAccountRecord[];
+};
+
+type ChannelBindingRecord = {
+  agentId: string;
+  description: string;
 };
 
 type ChannelsRoute =
@@ -328,7 +336,13 @@ async function upsertChannelAccount(params: {
   accountId: string;
   body: ChannelAccountMutationBody;
   writeConfigFile: OpenClawPluginApi["runtime"]["config"]["writeConfigFile"];
-}): Promise<{ ok: true; created: boolean; updated: boolean; account: ChannelAccountRecord }> {
+}): Promise<{
+  ok: true;
+  created: boolean;
+  updated: boolean;
+  account: ChannelAccountRecord;
+  binding?: ChannelBindingRecord;
+}> {
   const plugin = getChannelPlugin(params.channel);
   if (!plugin) {
     throw new Error(`Unknown channel "${params.channel}".`);
@@ -385,6 +399,37 @@ async function upsertChannelAccount(params: {
     });
   }
 
+  let binding: ChannelBindingRecord | undefined;
+  const requestedAgentId = params.body.agentId?.trim();
+  if (requestedAgentId) {
+    const bindingResult = applyAgentBindings(nextConfig, [
+      {
+        type: "route",
+        agentId: requestedAgentId,
+        match: {
+          channel: plugin.id,
+          accountId: resolvedAccountId,
+        },
+      },
+    ]);
+    if (bindingResult.conflicts.length > 0) {
+      const details = bindingResult.conflicts
+        .map(
+          (conflict) => `${describeBinding(conflict.binding)} (agent=${conflict.existingAgentId})`,
+        )
+        .join(", ");
+      throw new Error(`Binding conflict: ${details}`);
+    }
+    nextConfig = bindingResult.config;
+    const appliedBinding = bindingResult.updated[0] ?? bindingResult.added[0];
+    if (appliedBinding) {
+      binding = {
+        agentId: appliedBinding.agentId,
+        description: describeBinding(appliedBinding),
+      };
+    }
+  }
+
   if (plugin.id === "telegram") {
     const nextTelegramToken = resolveTelegramAccount({
       cfg: nextConfig,
@@ -410,6 +455,7 @@ async function upsertChannelAccount(params: {
       label: plugin.meta.label ?? plugin.id,
       snapshot,
     }),
+    ...(binding ? { binding } : {}),
   };
 }
 
