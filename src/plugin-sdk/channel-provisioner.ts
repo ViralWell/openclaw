@@ -19,6 +19,8 @@ export {
   normalizeChannelId,
 } from "../channels/plugins/index.js";
 export { moveSingleAccountChannelSectionToDefaultAccount } from "../channels/plugins/setup-helpers.js";
+export { addWildcardAllowFrom } from "../channels/plugins/onboarding/helpers.js";
+export { patchScopedAccountConfig } from "../channels/plugins/setup-helpers.js";
 export { buildChannelAccountSnapshot } from "../channels/plugins/status.js";
 export { applyChannelAccountConfig } from "../commands/channels/add-mutators.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";

@@ -8,7 +8,9 @@ const {
   getChannelPluginMock,
   listChannelPluginsMock,
   normalizeChannelIdMock,
+  addWildcardAllowFromMock,
   applyChannelAccountConfigMock,
+  patchScopedAccountConfigMock,
   moveSingleAccountChannelSectionToDefaultAccountMock,
   resolveTelegramAccountMock,
   deleteTelegramUpdateOffsetMock,
@@ -19,7 +21,29 @@ const {
   normalizeChannelIdMock: vi.fn((value?: string | null) =>
     value && value.trim() ? value.trim() : null,
   ),
+  addWildcardAllowFromMock: vi.fn((allowFrom?: Array<string | number> | null) => {
+    const entries = Array.isArray(allowFrom) ? allowFrom.map((entry) => String(entry)) : [];
+    return entries.includes("*") ? entries : [...entries, "*"];
+  }),
   applyChannelAccountConfigMock: vi.fn(({ cfg }) => cfg),
+  patchScopedAccountConfigMock: vi.fn(({ cfg, channelKey, accountId, patch }) => ({
+    ...cfg,
+    channels: {
+      ...(cfg.channels ?? {}),
+      [channelKey]: {
+        ...((cfg.channels ?? {})[channelKey] as Record<string, unknown> | undefined),
+        ...(accountId === "default"
+          ? patch
+          : {
+              accounts: {
+                ...(((cfg.channels ?? {})[channelKey] as { accounts?: Record<string, unknown> })
+                  ?.accounts ?? {}),
+                [accountId]: patch,
+              },
+            }),
+      },
+    },
+  })),
   moveSingleAccountChannelSectionToDefaultAccountMock: vi.fn(({ cfg }) => cfg),
   resolveTelegramAccountMock: vi.fn(() => ({ token: "" })),
   deleteTelegramUpdateOffsetMock: vi.fn(),
@@ -39,9 +63,14 @@ vi.mock("../../src/commands/channels/add-mutators.js", () => ({
   applyChannelAccountConfig: applyChannelAccountConfigMock,
 }));
 
+vi.mock("../../src/channels/plugins/onboarding/helpers.js", () => ({
+  addWildcardAllowFrom: addWildcardAllowFromMock,
+}));
+
 vi.mock("../../src/channels/plugins/setup-helpers.js", () => ({
   moveSingleAccountChannelSectionToDefaultAccount:
     moveSingleAccountChannelSectionToDefaultAccountMock,
+  patchScopedAccountConfig: patchScopedAccountConfigMock,
 }));
 
 vi.mock("../../src/telegram/accounts.js", () => ({
@@ -232,11 +261,12 @@ describe("channel-provisioner plugin", () => {
     await handler(
       localReq({
         method: "POST",
-        url: "/plugins/channel-provisioner/channels/telegram/accounts",
+        url: "/plugins/channel-provisioner/channels/accounts",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
+          channel: "telegram",
           accountId: "default",
           config: { token: "abc" },
         }),
@@ -246,6 +276,16 @@ describe("channel-provisioner plugin", () => {
 
     expect(res.statusCode).toBe(201);
     expect(writeConfigFile).toHaveBeenCalledTimes(1);
+    expect(patchScopedAccountConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelKey: "telegram",
+        accountId: "default",
+        patch: expect.objectContaining({
+          dmPolicy: "open",
+          allowFrom: ["*"],
+        }),
+      }),
+    );
     expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       created: true,
@@ -269,11 +309,12 @@ describe("channel-provisioner plugin", () => {
     await handler(
       localReq({
         method: "PUT",
-        url: "/plugins/channel-provisioner/channels/telegram/accounts/default",
+        url: "/plugins/channel-provisioner/channels/accounts/default",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
+          channel: "telegram",
           config: { token: "next" },
         }),
       }),
@@ -281,12 +322,54 @@ describe("channel-provisioner plugin", () => {
     );
 
     expect(res.statusCode).toBe(200);
+    expect(patchScopedAccountConfigMock).not.toHaveBeenCalled();
     expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       created: false,
       updated: true,
       account: { accountId: "default", channel: "telegram" },
     });
+  });
+
+  it("honors an explicit dmPolicy from the request body", async () => {
+    const telegram = makePlugin({ accountIds: [] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/accounts",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: "telegram",
+          accountId: "default",
+          config: { token: "abc", dmPolicy: "disabled" },
+        }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(patchScopedAccountConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelKey: "telegram",
+        accountId: "default",
+        patch: expect.objectContaining({
+          dmPolicy: "disabled",
+        }),
+      }),
+    );
+    expect(addWildcardAllowFromMock).not.toHaveBeenCalled();
   });
 
   it("deletes a channel account via DELETE", async () => {
@@ -305,7 +388,7 @@ describe("channel-provisioner plugin", () => {
     await handler(
       localReq({
         method: "DELETE",
-        url: "/plugins/channel-provisioner/channels/telegram/accounts/default",
+        url: "/plugins/channel-provisioner/channels/accounts/default?channel=telegram",
       }),
       res,
     );
@@ -344,6 +427,40 @@ describe("channel-provisioner plugin", () => {
     expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       results: [{ input: "#general", resolved: true, id: "id:#general" }],
+    });
+  });
+
+  it("rejects POST when channel is missing from the body", async () => {
+    const telegram = makePlugin({ accountIds: [] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/accounts",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          accountId: "default",
+          config: { token: "abc" },
+        }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body))).toMatchObject({
+      ok: false,
+      error: "channel is required",
     });
   });
 });

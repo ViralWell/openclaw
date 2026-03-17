@@ -20,6 +20,7 @@ export type ChannelAgentToolFactory = (params: { cfg?: OpenClawConfig }) => Chan
 
 export type ChannelSetupInput = {
   name?: string;
+  dmPolicy?: "pairing" | "allowlist" | "open" | "disabled";
   token?: string;
   tokenFile?: string;
   botToken?: string;

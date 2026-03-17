@@ -4,6 +4,7 @@ import {
   beginWebhookRequestPipelineOrReject,
   emptyPluginConfigSchema,
   readJsonWebhookBodyOrReject,
+  addWildcardAllowFrom,
   applyChannelAccountConfig,
   buildChannelAccountSnapshot,
   defaultRuntime,
@@ -14,6 +15,7 @@ import {
   moveSingleAccountChannelSectionToDefaultAccount,
   normalizeAccountId,
   normalizeChannelId,
+  patchScopedAccountConfig,
   resolveTelegramAccount,
   type ChannelResolveKind,
   type ChannelResolveResult,
@@ -22,7 +24,8 @@ import {
   type OpenClawPluginApi,
 } from "openclaw/plugin-sdk/channel-provisioner";
 
-type ChannelAccountBody = {
+type ChannelAccountMutationBody = {
+  channel: string;
   accountId?: string;
   config?: Record<string, unknown>;
 };
@@ -52,8 +55,8 @@ type ChannelsRoute =
   | { kind: "collection" }
   | { kind: "status" }
   | { kind: "resolve" }
-  | { kind: "accounts"; channel: string }
-  | { kind: "account"; channel: string; accountId: string };
+  | { kind: "accounts" }
+  | { kind: "account"; accountId: string };
 
 const DEFAULT_ROUTE_PATH = "/plugins/channel-provisioner/channels";
 
@@ -97,11 +100,11 @@ function resolveChannelsRoute(params: {
     .split("/")
     .map((part) => decodeURIComponent(part).trim())
     .filter(Boolean);
-  if (parts.length === 2 && parts[1] === "accounts") {
-    return { kind: "accounts", channel: parts[0] };
+  if (parts.length === 1 && parts[0] === "accounts") {
+    return { kind: "accounts" };
   }
-  if (parts.length === 3 && parts[1] === "accounts") {
-    return { kind: "account", channel: parts[0], accountId: normalizeAccountId(parts[2]) };
+  if (parts.length === 2 && parts[0] === "accounts") {
+    return { kind: "account", accountId: normalizeAccountId(parts[1]) };
   }
   return null;
 }
@@ -157,9 +160,11 @@ function pickStringList(value: unknown): string[] | undefined {
   return undefined;
 }
 
-function buildChannelSetupInput(body: ChannelAccountBody): ChannelSetupInput {
-  const config = body.config ?? {};
+function buildChannelSetupInput(config: Record<string, unknown> = {}): ChannelSetupInput {
   return {
+    ...(pickString(config.dmPolicy)
+      ? { dmPolicy: pickString(config.dmPolicy) as ChannelSetupInput["dmPolicy"] }
+      : {}),
     ...(pickString(config.token) ? { token: pickString(config.token) } : {}),
     ...(pickString(config.tokenFile) ? { tokenFile: pickString(config.tokenFile) } : {}),
     ...(pickString(config.botToken) ? { botToken: pickString(config.botToken) } : {}),
@@ -255,22 +260,73 @@ async function buildChannelRecord(params: {
   };
 }
 
-async function buildChannelsStatus(cfg: OpenClawConfig): Promise<ChannelRecord[]> {
-  const records: ChannelRecord[] = [];
-  for (const plugin of listChannelPlugins()) {
-    const record = await buildChannelRecord({ cfg, channel: plugin.id });
-    if (record) {
-      records.push(record);
-    }
+function readScopedAllowFrom(params: {
+  cfg: OpenClawConfig;
+  channel: string;
+  accountId: string;
+}): Array<string | number> | undefined {
+  const channelConfig = params.cfg.channels?.[params.channel] as
+    | {
+        allowFrom?: Array<string | number>;
+        accounts?: Record<string, { allowFrom?: Array<string | number> }>;
+      }
+    | undefined;
+  if (params.accountId === DEFAULT_ACCOUNT_ID) {
+    return channelConfig?.allowFrom;
   }
-  return records;
+  return channelConfig?.accounts?.[params.accountId]?.allowFrom;
+}
+
+function applyProvisionedDmPolicy(params: {
+  cfg: OpenClawConfig;
+  channel: string;
+  accountId: string;
+  dmPolicy: NonNullable<ChannelSetupInput["dmPolicy"]>;
+}): OpenClawConfig {
+  const existingAllowFrom = readScopedAllowFrom(params);
+  const allowFrom =
+    params.dmPolicy === "open" ? addWildcardAllowFrom(existingAllowFrom) : existingAllowFrom;
+  return patchScopedAccountConfig({
+    cfg: params.cfg,
+    channelKey: params.channel,
+    accountId: params.accountId,
+    patch: {
+      dmPolicy: params.dmPolicy,
+      ...(allowFrom ? { allowFrom } : {}),
+    },
+  });
+}
+
+async function buildChannelsStatus(cfg: OpenClawConfig): Promise<ChannelRecord[]> {
+  const records = await Promise.all(
+    listChannelPlugins().map(
+      async (plugin) => await buildChannelRecord({ cfg, channel: plugin.id }),
+    ),
+  );
+  return records.filter((record): record is ChannelRecord => record !== null);
+}
+
+async function readChannelMutationBody(params: {
+  req: IncomingMessage;
+  res: ServerResponse;
+}): Promise<{ body: ChannelAccountMutationBody; channel: string } | null> {
+  const body = await readJsonBody<ChannelAccountMutationBody>(params);
+  if (!body) {
+    return null;
+  }
+  const channel = normalizeChannelId(body.channel);
+  if (!channel) {
+    respondJson(params.res, 400, { ok: false, error: "channel is required" });
+    return null;
+  }
+  return { body, channel };
 }
 
 async function upsertChannelAccount(params: {
   cfg: OpenClawConfig;
   channel: string;
   accountId: string;
-  body: ChannelAccountBody;
+  body: ChannelAccountMutationBody;
   writeConfigFile: OpenClawPluginApi["runtime"]["config"]["writeConfigFile"];
 }): Promise<{ ok: true; created: boolean; updated: boolean; account: ChannelAccountRecord }> {
   const plugin = getChannelPlugin(params.channel);
@@ -284,7 +340,8 @@ async function upsertChannelAccount(params: {
   const existingIds = new Set(plugin.config.listAccountIds(params.cfg));
   const created = !existingIds.has(params.accountId);
   let nextConfig = params.cfg;
-  const input = buildChannelSetupInput(params.body);
+  const input = buildChannelSetupInput(params.body.config);
+  const effectiveDmPolicy = input.dmPolicy ?? (created ? "open" : undefined);
   const resolvedAccountId =
     plugin.setup.resolveAccountId?.({
       cfg: nextConfig,
@@ -319,6 +376,14 @@ async function upsertChannelAccount(params: {
     accountId: resolvedAccountId,
     input,
   });
+  if (effectiveDmPolicy) {
+    nextConfig = applyProvisionedDmPolicy({
+      cfg: nextConfig,
+      channel: plugin.id,
+      accountId: resolvedAccountId,
+      dmPolicy: effectiveDmPolicy,
+    });
+  }
 
   if (plugin.id === "telegram") {
     const nextTelegramToken = resolveTelegramAccount({
@@ -505,54 +570,47 @@ function createChannelProvisionerHandler(params: {
       }
 
       if (method === "POST" && route.kind === "accounts") {
-        const channel = normalizeChannelId(route.channel);
-        if (!channel) {
-          return respondJson(res, 400, { ok: false, error: "unknown channel" });
-        }
-        const body = await readJsonBody<ChannelAccountBody>({ req, res });
-        if (!body) {
+        const mutation = await readChannelMutationBody({ req, res });
+        if (!mutation) {
           return true;
         }
-        const accountId = normalizeAccountId(body.accountId);
+        const accountId = normalizeAccountId(mutation.body.accountId);
         const result = await upsertChannelAccount({
           cfg,
-          channel,
+          channel: mutation.channel,
           accountId,
-          body,
+          body: mutation.body,
           writeConfigFile: params.writeConfigFile,
         });
         params.logger.info(
-          `channel-provisioner: created ${channel} account "${result.account.accountId}"`,
+          `channel-provisioner: created ${mutation.channel} account "${result.account.accountId}"`,
         );
         return respondJson(res, 201, result);
       }
 
       if (method === "PUT" && route.kind === "account") {
-        const channel = normalizeChannelId(route.channel);
-        if (!channel) {
-          return respondJson(res, 400, { ok: false, error: "unknown channel" });
-        }
-        const body = await readJsonBody<ChannelAccountBody>({ req, res });
-        if (!body) {
+        const mutation = await readChannelMutationBody({ req, res });
+        if (!mutation) {
           return true;
         }
         const result = await upsertChannelAccount({
           cfg,
-          channel,
+          channel: mutation.channel,
           accountId: route.accountId,
-          body,
+          body: mutation.body,
           writeConfigFile: params.writeConfigFile,
         });
         params.logger.info(
-          `channel-provisioner: ${result.created ? "created" : "updated"} ${channel} account "${result.account.accountId}"`,
+          `channel-provisioner: ${result.created ? "created" : "updated"} ${mutation.channel} account "${result.account.accountId}"`,
         );
         return respondJson(res, result.created ? 201 : 200, result);
       }
 
       if (method === "DELETE" && route.kind === "account") {
-        const channel = normalizeChannelId(route.channel);
+        const url = getRequestUrl(req);
+        const channel = normalizeChannelId(url.searchParams.get("channel"));
         if (!channel) {
-          return respondJson(res, 400, { ok: false, error: "unknown channel" });
+          return respondJson(res, 400, { ok: false, error: "channel is required" });
         }
         await deleteChannelAccount({
           cfg,

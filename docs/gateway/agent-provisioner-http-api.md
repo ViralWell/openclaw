@@ -8,7 +8,9 @@ title: "Agent Provisioner API"
 
 # Agent Provisioner API (HTTP)
 
-The `agent-provisioner` plugin exposes a small REST API for syncing agents from an external system into OpenClaw.
+The bundled `agent-provisioner` plugin exposes a small REST API for syncing agents from an external system into OpenClaw.
+
+This plugin is bundled and enabled by default.
 
 Default base path:
 
@@ -36,6 +38,13 @@ Auth source:
 - password mode: `gateway.auth.password` or `OPENCLAW_GATEWAY_PASSWORD`
 
 See [Gateway Authentication](/gateway/authentication).
+
+## Behavior
+
+- `POST /agents` creates a new agent and returns `201`.
+- `PUT /agents/:id` is an upsert. It returns `201` when the agent did not exist yet, or `200` when it updated an existing agent.
+- `DELETE /agents/:id` removes the agent entry and its route bindings from config.
+- On create or update, the plugin also ensures the agent workspace exists, ensures the per-agent sessions directory exists, and updates `IDENTITY.md` with `Name`, `Emoji`, and `Avatar` lines when those fields are provided.
 
 ## Request body
 
@@ -81,6 +90,9 @@ Common responses:
 - `401` unauthorized
 - `404` agent not found
 - `405` method not allowed
+- `GET /agents` returns `{ ok: true, agents: [...] }`
+- `GET /agents/:id` returns `{ ok: true, agent: {...} }`
+- `DELETE /agents/:id` returns `{ ok: true, deleted: true, agentId: "<id>" }`
 
 Success responses use JSON. Example `POST` or `PUT` response:
 
@@ -166,3 +178,4 @@ curl -sS -X DELETE "$OPENCLAW_BASE_URL/plugins/agent-provisioner/agents/ops-bot"
 
 - `PUT` is the main sync endpoint when your external system is the source of truth.
 - When `bindings` is omitted, the plugin keeps the agent's existing route bindings unchanged.
+- Returned `bindings` are normalized display strings, so `slack:team-a` in the request becomes `slack accountId=team-a` in responses.
