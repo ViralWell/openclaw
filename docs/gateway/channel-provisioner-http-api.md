@@ -60,7 +60,7 @@ See [Gateway Authentication](/gateway/authentication).
     "token": "123:abc",
     "botToken": "xoxb-...",
     "appToken": "xapp-...",
-    "dmPolicy": "open",
+    "dmPolicy": "disabled",
     "webhookUrl": "https://example.com/webhook"
   }
 }
@@ -73,7 +73,7 @@ Notes:
 - `accountId` comes from the URL on `PUT` and `DELETE`.
 - `channel` for `DELETE` is sent as a query parameter.
 - `config` is provider-specific. The plugin currently recognizes fields such as `dmPolicy`, `token`, `tokenFile`, `botToken`, `appToken`, `signalNumber`, `cliPath`, `dbPath`, `service`, `region`, `authDir`, `httpUrl`, `httpHost`, `httpPort`, `webhookPath`, `webhookUrl`, `audienceType`, `audience`, `useEnv`, `homeserver`, `userId`, `accessToken`, `password`, `deviceName`, `initialSyncLimit`, `ship`, `url`, `code`, `groupChannels`, `dmAllowlist`, and `autoDiscoverChannels`.
-- `POST` defaults `config.dmPolicy` to `open` when omitted, so newly provisioned channel bindings do not start in pairing mode by default.
+- `POST` defaults `config.dmPolicy` to `disabled` when omitted, so newly provisioned channel bindings do not start in pairing mode by default.
 - `PUT` leaves the existing DM policy unchanged unless `config.dmPolicy` is explicitly provided.
 
 ## Resolve endpoint

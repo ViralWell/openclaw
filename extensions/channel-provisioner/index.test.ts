@@ -281,11 +281,11 @@ describe("channel-provisioner plugin", () => {
         channelKey: "telegram",
         accountId: "default",
         patch: expect.objectContaining({
-          dmPolicy: "open",
-          allowFrom: ["*"],
+          dmPolicy: "disabled",
         }),
       }),
     );
+    expect(addWildcardAllowFromMock).not.toHaveBeenCalled();
     expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       created: true,

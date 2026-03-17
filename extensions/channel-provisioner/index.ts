@@ -341,7 +341,7 @@ async function upsertChannelAccount(params: {
   const created = !existingIds.has(params.accountId);
   let nextConfig = params.cfg;
   const input = buildChannelSetupInput(params.body.config);
-  const effectiveDmPolicy = input.dmPolicy ?? (created ? "open" : undefined);
+  const effectiveDmPolicy = input.dmPolicy ?? (created ? "disabled" : undefined);
   const resolvedAccountId =
     plugin.setup.resolveAccountId?.({
       cfg: nextConfig,
