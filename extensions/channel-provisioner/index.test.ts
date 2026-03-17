@@ -270,7 +270,7 @@ describe("channel-provisioner plugin", () => {
     });
   });
 
-  it("creates a channel account via POST", async () => {
+  it('creates a channel account via POST with default allowFrom ["*"]', async () => {
     const telegram = makePlugin({ accountIds: [] });
     getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
 
@@ -306,11 +306,12 @@ describe("channel-provisioner plugin", () => {
         channelKey: "telegram",
         accountId: "default",
         patch: expect.objectContaining({
-          dmPolicy: "disabled",
+          dmPolicy: "open",
+          allowFrom: ["*"],
         }),
       }),
     );
-    expect(addWildcardAllowFromMock).not.toHaveBeenCalled();
+    expect(addWildcardAllowFromMock).toHaveBeenCalledWith(undefined);
     expect(JSON.parse(String(res.body))).toMatchObject({
       ok: true,
       created: true,
@@ -505,6 +506,48 @@ describe("channel-provisioner plugin", () => {
       }),
     );
     expect(addWildcardAllowFromMock).not.toHaveBeenCalled();
+  });
+
+  it("adds wildcard allowFrom when the request explicitly sets dmPolicy to open", async () => {
+    const telegram = makePlugin({ accountIds: [] });
+    getChannelPluginMock.mockImplementation((id) => (id === "telegram" ? telegram : undefined));
+
+    const handler = __testing.createChannelProvisionerHandler({
+      logger: { info() {}, warn() {}, error() {} },
+      basePath: "/plugins/channel-provisioner/channels",
+      loadConfig: () => ({}),
+      writeConfigFile: vi.fn(),
+    });
+
+    const res = createMockServerResponse();
+    await handler(
+      localReq({
+        method: "POST",
+        url: "/plugins/channel-provisioner/channels/accounts",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: "telegram",
+          accountId: "default",
+          config: { token: "abc", dmPolicy: "open" },
+        }),
+      }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(patchScopedAccountConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelKey: "telegram",
+        accountId: "default",
+        patch: expect.objectContaining({
+          dmPolicy: "open",
+          allowFrom: ["*"],
+        }),
+      }),
+    );
+    expect(addWildcardAllowFromMock).toHaveBeenCalledWith(undefined);
   });
 
   it("deletes a channel account via DELETE", async () => {

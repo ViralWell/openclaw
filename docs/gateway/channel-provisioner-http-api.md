@@ -61,7 +61,7 @@ See [Gateway Authentication](/gateway/authentication).
     "token": "123:abc",
     "botToken": "xoxb-...",
     "appToken": "xapp-...",
-    "dmPolicy": "disabled",
+    "dmPolicy": "open",
     "webhookUrl": "https://example.com/webhook"
   }
 }
@@ -75,7 +75,8 @@ Notes:
 - `agentId` is optional on `POST` and `PUT`. When present, the plugin also writes an account-scoped route binding so the provisioned channel account immediately routes to that agent.
 - `channel` for `DELETE` is sent as a query parameter.
 - `config` is provider-specific. The plugin currently recognizes fields such as `dmPolicy`, `token`, `tokenFile`, `botToken`, `appToken`, `signalNumber`, `cliPath`, `dbPath`, `service`, `region`, `authDir`, `httpUrl`, `httpHost`, `httpPort`, `webhookPath`, `webhookUrl`, `audienceType`, `audience`, `useEnv`, `homeserver`, `userId`, `accessToken`, `password`, `deviceName`, `initialSyncLimit`, `ship`, `url`, `code`, `groupChannels`, `dmAllowlist`, and `autoDiscoverChannels`.
-- `POST` defaults `config.dmPolicy` to `disabled` when omitted, so newly provisioned channel bindings do not start in pairing mode by default.
+- `POST` defaults newly provisioned channel accounts to `dmPolicy: "open"` with `allowFrom: ["*"]`.
+- When `config.dmPolicy` is explicitly set to `open`, the plugin also ensures `allowFrom` includes `"*"`.
 - `PUT` leaves the existing DM policy unchanged unless `config.dmPolicy` is explicitly provided.
 - Binding conflicts still fail the request. The account and binding update are written together, so a conflicting `agentId` does not leave behind a partially provisioned account.
 
