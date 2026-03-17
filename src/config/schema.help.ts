@@ -86,6 +86,8 @@ export const FIELD_HELP: Record<string, string> = {
     'Gateway auth mode: "none", "token", "password", or "trusted-proxy" depending on your edge architecture. Use token/password for direct exposure, and trusted-proxy only behind hardened identity-aware proxies.',
   "gateway.auth.allowTailscale":
     "Allows trusted Tailscale identity paths to satisfy gateway auth checks when configured. Use this only when your tailnet identity posture is strong and operator workflows depend on it.",
+  "gateway.auth.dangerouslyAllowPrivateNetwork":
+    "DANGEROUS: Allows private network addresses (RFC 1918: 192.168.x.x, 10.x.x.x, 172.16-31.x.x) to bypass authentication when accessing the gateway directly. Only enable this in trusted internal networks with additional security controls (firewall, VPN). Public internet clients still require authentication.",
   "gateway.auth.rateLimit":
     "Login/auth attempt throttling controls to reduce credential brute-force risk at the gateway boundary. Keep enabled in exposed environments and tune thresholds to your traffic baseline.",
   "gateway.auth.trustedProxy":
