@@ -728,25 +728,24 @@ function createChannelProvisionerHandler(params: {
               );
             }
 
-            // Import WhatsApp runtime dynamically
+            // Use QR-based login: returns a QR data URL for the frontend to render.
+            // Frontend then polls GET /channels/login/wait to check connection status.
             const { getWhatsAppRuntime } = await import("../whatsapp/src/runtime.js");
-
-            // Use loginWeb (same as CLI) which handles code 515 restart in-process
-            await getWhatsAppRuntime().channel.whatsapp.loginWeb(
+            const result = await getWhatsAppRuntime().channel.whatsapp.startWebLoginWithQr({
               verbose,
-              undefined,
-              defaultRuntime,
               accountId,
-            );
+              runtime: defaultRuntime,
+            });
 
             params.logger.info(
-              `channel-provisioner: WhatsApp login completed for account "${accountId}"`,
+              `channel-provisioner: WhatsApp QR login started for account "${accountId}"`,
             );
             return respondJson(res, 200, {
               ok: true,
               channel,
               accountId,
-              message: "WhatsApp linked successfully",
+              message: result.message,
+              ...(result.qrDataUrl ? { qrDataUrl: result.qrDataUrl } : {}),
               ...(upsertResult?.binding ? { binding: upsertResult.binding } : {}),
             });
           } catch (error) {
