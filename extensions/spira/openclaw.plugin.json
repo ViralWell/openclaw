@@ -1,0 +1,138 @@
+{
+  "id": "spira",
+  "name": "Spira",
+  "description": "Fixed workflow, media, and publish tools for Spira-backed AI influencer agents.",
+  "skills": ["./skills"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "workflows": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "baseUrl": { "type": "string" },
+          "apiKey": { "type": "string" },
+          "catalogUrl": { "type": "string" },
+          "runPath": { "type": "string", "default": "/api/workflows/runs" },
+          "statusPathTemplate": {
+            "type": "string",
+            "default": "/api/workflows/runs/{runId}"
+          },
+          "catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "summary": { "type": "string" },
+                "requiredInputs": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "inputSchema": { "type": "object" },
+                "outputSchema": { "type": "object" },
+                "attributes": { "type": "object" },
+                "enabled": { "type": "boolean" },
+                "version": { "type": "string" }
+              },
+              "required": ["id"]
+            }
+          }
+        }
+      },
+      "media": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "defaultProviderOrder": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["spira", "viral-well-tools"]
+            }
+          },
+          "spira": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "baseUrl": { "type": "string" },
+              "apiKey": { "type": "string" },
+              "runPath": { "type": "string", "default": "/api/workflows/runs" },
+              "statusPathTemplate": {
+                "type": "string",
+                "default": "/api/workflows/runs/{runId}"
+              },
+              "actions": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text_to_image": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "workflowId": { "type": "string" }
+                    }
+                  },
+                  "image_to_video": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "workflowId": { "type": "string" }
+                    }
+                  },
+                  "video_frames": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "workflowId": { "type": "string" }
+                    }
+                  },
+                  "caption_video": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "workflowId": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "viralWellTools": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "baseUrl": { "type": "string" },
+              "apiKey": { "type": "string" },
+              "statusPathTemplate": { "type": "string" },
+              "endpoints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text_to_image": { "type": "string" },
+                  "image_to_video": { "type": "string" },
+                  "video_frames": { "type": "string" },
+                  "caption_video": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "publish": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "baseUrl": { "type": "string" },
+          "apiKey": { "type": "string" }
+        }
+      }
+    }
+  }
+}

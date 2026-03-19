@@ -130,6 +130,12 @@ describe("resolveEnableState", () => {
     expect(state).toEqual({ enabled: true });
   });
 
+  it("includes spira in bundled plugins enabled by default", () => {
+    expect(BUNDLED_ENABLED_BY_DEFAULT.has("spira")).toBe(true);
+    const state = resolveEnableState("spira", "bundled", normalizePluginsConfig({}));
+    expect(state).toEqual({ enabled: true });
+  });
+
   it("keeps the selected memory slot plugin enabled even when omitted from plugins.allow", () => {
     const state = resolveEnableState(
       "memory-core",

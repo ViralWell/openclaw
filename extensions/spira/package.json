@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/spira",
+  "version": "2026.3.14",
+  "private": true,
+  "description": "OpenClaw Spira workflow/media/publish plugin",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -30,6 +30,7 @@ export const BUNDLED_ENABLED_BY_DEFAULT = new Set<string>([
   "ollama",
   "phone-control",
   "sglang",
+  "spira",
   "talk-voice",
   "vllm",
 ]);
